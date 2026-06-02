@@ -156,7 +156,7 @@ const uploadPhotoToSupabase = async (file: File): Promise<string> => {
     // 1. Verify/create storage bucket
     try {
       const { data: buckets } = await supabase.storage.listBuckets();
-      const exists = buckets?.some(b => b.name === 'employee-photos');
+      const exists = buckets?.some((b: any) => b.name === 'employee-photos');
       if (!exists) {
         await supabase.storage.createBucket('employee-photos', {
           public: true,
