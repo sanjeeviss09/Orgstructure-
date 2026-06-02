@@ -195,6 +195,33 @@ const syncUsersWithEmployees = (db: DB): DB => {
 };
 
 const readDb = (): DB => {
+  if (!fs.existsSync(DB_PATH)) {
+    const seedPath = path.join(__dirname, 'db_seed.json');
+    if (fs.existsSync(seedPath)) {
+      fs.copyFileSync(seedPath, DB_PATH);
+    } else {
+      const emptyDb: DB = {
+        users: [],
+        employees: [],
+        appraisals: [],
+        templates: [],
+        candidates: [],
+        questionnaires: [],
+        assignments: [],
+        responses: [],
+        counselling_sessions: [],
+        daily_feedbacks: [],
+        hr_targets: {
+          target_hiring_velocity: 4,
+          target_attrition_rate: 8.5,
+          departments: []
+        }
+      };
+      fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+      fs.writeFileSync(DB_PATH, JSON.stringify(emptyDb, null, 2), 'utf-8');
+    }
+  }
+
   const data = fs.readFileSync(DB_PATH, 'utf-8');
   const parsed = JSON.parse(data.replace(/^\uFEFF/, ''));
   if (!parsed.users) parsed.users = [];
