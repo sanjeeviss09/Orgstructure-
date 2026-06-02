@@ -14,11 +14,11 @@ interface EmployeeManagerProps {
 
 // ─── CSV helpers ───────────────────────────────────────────────────────
 const CSV_TEMPLATE_HEADERS = [
-  'emp_id', 'full_name', 'email_official', 'designation', 'department', 'business_unit',
+  'emp_id', 'full_name', 'email_official', 'designation', 'department', 'sub_function', 'business_unit',
   'role_tier', 'ctc_annual', 'budget_allocated', 'ctc_currency', 'employment_status', 'dashboard_access', 'reporting_manager_emp_id', 'company_name', 'photo_url', 'past_organization', 'total_experience', 'education_qualification'
 ];
 const CSV_SAMPLE_ROW = [
-  'APS007', 'Jane Doe', 'jane@axxel.com', 'Software Engineer', 'Software Engineering', 'Technology',
+  'APS007', 'Jane Doe', 'jane@axxel.com', 'Software Engineer', 'Software Engineering', 'Engineering Unit', 'Technology',
   '5', '1200000', '1500000', 'INR', 'Active', 'Employee', 'APS001', 'Axxel Corp', 'https://i.pravatar.cc/150?u=jane', 'TechCorp Inc.', '5', 'B.Tech in Computer Science'
 ];
 const downloadTemplate = () => {
@@ -37,6 +37,14 @@ const parseCSV = (text: string): Record<string, string>[] => {
     const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+
+    // Auto-assign role tier and access based on designation if not provided
+    if (obj.designation && DESIGNATION_MAP[obj.designation]) {
+      const mapping = DESIGNATION_MAP[obj.designation];
+      if (!obj.role_tier) obj.role_tier = String(mapping.tier);
+      if (!obj.dashboard_access) obj.dashboard_access = mapping.access;
+    }
+
     return obj;
   });
 };

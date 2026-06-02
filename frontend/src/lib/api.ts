@@ -1,3 +1,4 @@
+const API_BASE = import.meta.env.VITE_API_URL || 'https://orgstructure.onrender.com';
 
 export const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cbd5e1'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
 
@@ -34,6 +35,7 @@ export interface Employee {
   total_experience?: string;
   education_qualification?: string;
   history?: EmployeeHistoryEvent[];
+  sub_function?: string;
 }
 
 
@@ -171,7 +173,7 @@ export interface DailyFeedback {
 
 // ─── AUTH ─────────────────────────────────────────────────────────────
 export const login = async (username: string, password: string): Promise<AuthUser> => {
-  const res = await fetch('http://localhost:3001/api/auth/login', {
+  const res = await fetch(API_BASE + '/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -186,7 +188,7 @@ export const login = async (username: string, password: string): Promise<AuthUse
 // ─── EMPLOYEES ────────────────────────────────────────────────────────
 export const fetchEmployees = async (): Promise<Employee[]> => {
   try {
-    const res = await fetch(`http://localhost:3001/api/employees?_=${Date.now()}`, {
+    const res = await fetch(`${API_BASE}/api/employees?_=${Date.now()}`, {
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
     });
     if (!res.ok) throw new Error('Failed to fetch employees');
@@ -219,7 +221,7 @@ const TARGETS_CACHE_KEY = 'ag_hr_targets_cache';
 
 export const fetchTargets = async (): Promise<HRTargets> => {
   try {
-    const res = await fetch(`http://localhost:3001/api/targets?_=${Date.now()}`, {
+    const res = await fetch(`${API_BASE}/api/targets?_=${Date.now()}`, {
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
     });
     if (!res.ok) throw new Error(`Failed to fetch targets: ${res.status}`);
@@ -244,7 +246,7 @@ export const fetchTargets = async (): Promise<HRTargets> => {
 };
 
 export const saveTargets = async (targets: HRTargets): Promise<HRTargets> => {
-  const res = await fetch('http://localhost:3001/api/targets', {
+  const res = await fetch(API_BASE + '/api/targets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(targets)
@@ -257,7 +259,7 @@ export const saveTargets = async (targets: HRTargets): Promise<HRTargets> => {
 };
 
 export const getAiStrategy = async (metrics: any): Promise<string> => {
-  const res = await fetch('http://localhost:3001/api/ai-strategy', {
+  const res = await fetch(API_BASE + '/api/ai-strategy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(metrics)
@@ -540,7 +542,7 @@ export const fetchStats = async (): Promise<Stats> => {
 };
 
 export const createEmployee = async (emp: Omit<Employee, 'id'>): Promise<Employee> => {
-  const res = await fetch('http://localhost:3001/api/employees', {
+  const res = await fetch(API_BASE + '/api/employees', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -557,7 +559,7 @@ export const createEmployee = async (emp: Omit<Employee, 'id'>): Promise<Employe
 };
 
 export const updateEmployee = async (id: string, emp: Partial<Employee>): Promise<Employee> => {
-  const res = await fetch(`http://localhost:3001/api/employees/${id}`, {
+  const res = await fetch(`${API_BASE}/api/employees/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(emp)
@@ -571,7 +573,7 @@ export const updateEmployee = async (id: string, emp: Partial<Employee>): Promis
 };
 
 export const deleteEmployee = async (id: string): Promise<void> => {
-  const res = await fetch(`http://localhost:3001/api/employees/${id}`, {
+  const res = await fetch(`${API_BASE}/api/employees/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) {
@@ -582,7 +584,7 @@ export const deleteEmployee = async (id: string): Promise<void> => {
 
 export const bulkDeleteEmployees = async (ids: string[]): Promise<void> => {
   if (!ids.length) return;
-  const res = await fetch('http://localhost:3001/api/employees/bulk-delete', {
+  const res = await fetch(API_BASE + '/api/employees/bulk-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids })
@@ -597,7 +599,7 @@ export const bulkDeleteEmployees = async (ids: string[]): Promise<void> => {
 export const bulkImportEmployees = async (
   employees: Record<string, string>[]
 ): Promise<{ added: number; message: string }> => {
-  const res = await fetch('http://localhost:3001/api/employees/bulk', {
+  const res = await fetch(API_BASE + '/api/employees/bulk', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ employees })
@@ -612,13 +614,13 @@ export const bulkImportEmployees = async (
 // ─── WELLNESS MODULE API ──────────────────────────────────────────────
 
 export const fetchQuestionnaires = async (): Promise<WellnessQuestionnaire[]> => {
-  const res = await fetch('http://localhost:3001/api/wellness/questionnaires');
+  const res = await fetch(API_BASE + '/api/wellness/questionnaires');
   if (!res.ok) throw new Error('Failed to fetch questionnaires');
   return res.json();
 };
 
 export const createQuestionnaire = async (q: Partial<WellnessQuestionnaire>): Promise<WellnessQuestionnaire> => {
-  const res = await fetch('http://localhost:3001/api/wellness/questionnaires', {
+  const res = await fetch(API_BASE + '/api/wellness/questionnaires', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(q)
@@ -628,14 +630,14 @@ export const createQuestionnaire = async (q: Partial<WellnessQuestionnaire>): Pr
 };
 
 export const fetchAssignments = async (empId?: string): Promise<WellnessAssignment[]> => {
-  const url = empId ? `http://localhost:3001/api/wellness/assignments?empId=${empId}` : 'http://localhost:3001/api/wellness/assignments';
+  const url = empId ? `${API_BASE}/api/wellness/assignments?empId=${empId}` : API_BASE + '/api/wellness/assignments';
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch assignments');
   return res.json();
 };
 
 export const createAssignment = async (a: Partial<WellnessAssignment>): Promise<WellnessAssignment> => {
-  const res = await fetch('http://localhost:3001/api/wellness/assignments', {
+  const res = await fetch(API_BASE + '/api/wellness/assignments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(a)
@@ -645,7 +647,7 @@ export const createAssignment = async (a: Partial<WellnessAssignment>): Promise<
 };
 
 export const submitWellnessResponse = async (data: Partial<WellnessResponse>): Promise<WellnessResponse> => {
-  const res = await fetch('http://localhost:3001/api/wellness/submit', {
+  const res = await fetch(API_BASE + '/api/wellness/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -655,14 +657,14 @@ export const submitWellnessResponse = async (data: Partial<WellnessResponse>): P
 };
 
 export const fetchCounsellingSessions = async (empId?: string): Promise<CounsellingSession[]> => {
-  const url = empId ? `http://localhost:3001/api/wellness/counselling?empId=${empId}` : 'http://localhost:3001/api/wellness/counselling';
+  const url = empId ? `${API_BASE}/api/wellness/counselling?empId=${empId}` : API_BASE + '/api/wellness/counselling';
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch sessions');
   return res.json();
 };
 
 export const createCounsellingSession = async (s: Partial<CounsellingSession>): Promise<CounsellingSession> => {
-  const res = await fetch('http://localhost:3001/api/wellness/counselling', {
+  const res = await fetch(API_BASE + '/api/wellness/counselling', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(s)
@@ -672,7 +674,7 @@ export const createCounsellingSession = async (s: Partial<CounsellingSession>): 
 };
 
 export const sendCounsellingMessage = async (sessionId: string, text: string, senderId: string): Promise<CounsellingMessage> => {
-  const res = await fetch(`http://localhost:3001/api/wellness/counselling/${sessionId}/message`, {
+  const res = await fetch(`${API_BASE}/api/wellness/counselling/${sessionId}/message`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, sender_id: senderId })
@@ -682,13 +684,13 @@ export const sendCounsellingMessage = async (sessionId: string, text: string, se
 };
 
 export const fetchDailyFeedbacks = async (): Promise<DailyFeedback[]> => {
-  const res = await fetch('http://localhost:3001/api/wellness/daily-feedback');
+  const res = await fetch(API_BASE + '/api/wellness/daily-feedback');
   if (!res.ok) throw new Error('Failed to fetch daily feedbacks');
   return res.json();
 };
 
 export const submitDailyFeedback = async (data: Partial<DailyFeedback>): Promise<DailyFeedback> => {
-  const res = await fetch('http://localhost:3001/api/wellness/daily-feedback', {
+  const res = await fetch(API_BASE + '/api/wellness/daily-feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -726,7 +728,7 @@ export interface InternReport {
 }
 
 export const registerIntern = async (data: any): Promise<Intern> => {
-  const res = await fetch('http://localhost:3001/api/interns/register', {
+  const res = await fetch(API_BASE + '/api/interns/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -736,7 +738,7 @@ export const registerIntern = async (data: any): Promise<Intern> => {
 };
 
 export const loginIntern = async (internId: string, password: string): Promise<Intern> => {
-  const res = await fetch('http://localhost:3001/api/interns/login', {
+  const res = await fetch(API_BASE + '/api/interns/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ internId, password })
@@ -746,13 +748,13 @@ export const loginIntern = async (internId: string, password: string): Promise<I
 };
 
 export const fetchInterns = async (): Promise<Intern[]> => {
-  const res = await fetch('http://localhost:3001/api/interns');
+  const res = await fetch(API_BASE + '/api/interns');
   if (!res.ok) throw new Error('Failed to fetch interns');
   return res.json();
 };
 
 export const updateIntern = async (id: string, updates: Partial<Intern>): Promise<Intern> => {
-  const res = await fetch(`http://localhost:3001/api/interns/${id}`, {
+  const res = await fetch(`${API_BASE}/api/interns/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates)
@@ -762,7 +764,7 @@ export const updateIntern = async (id: string, updates: Partial<Intern>): Promis
 };
 
 export const submitInternReport = async (data: Partial<InternReport>): Promise<InternReport> => {
-  const res = await fetch('http://localhost:3001/api/interns/reports', {
+  const res = await fetch(API_BASE + '/api/interns/reports', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -772,8 +774,47 @@ export const submitInternReport = async (data: Partial<InternReport>): Promise<I
 };
 
 export const fetchInternReports = async (internId?: string): Promise<InternReport[]> => {
-  const url = internId ? `http://localhost:3001/api/interns/reports/${internId}` : 'http://localhost:3001/api/interns/reports';
+  const url = internId ? `${API_BASE}/api/interns/reports/${internId}` : API_BASE + '/api/interns/reports';
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch intern reports');
   return res.json();
 };
+
+export const resetDatabase = async (): Promise<{ success: boolean; message: string }> => {
+  const res = await fetch(API_BASE + '/api/system/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) throw new Error('Failed to reset database data');
+  return res.json();
+};
+
+// ─── USER ENGAGEMENT ANALYTICS ───────────────────────────────────────
+export interface UserEngagement {
+  employee_id: string;
+  full_name: string;
+  department: string;
+  designation: string;
+  business_unit: string;
+  dashboard_access: string;
+  employment_status: string;
+  photo_url: string;
+  join_date?: string;
+  feedback_count: number;
+  chat_count: number;
+  login_days: number;
+  feedback_score: number;
+  chat_score: number;
+  login_score: number;
+  score: number;
+  rating: 'Good' | 'Okay' | 'Low Interactive';
+}
+
+export const fetchUserEngagement = async (): Promise<UserEngagement[]> => {
+  const res = await fetch(`${API_BASE}/api/analytics/user-engagement?_=${Date.now()}`, {
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  if (!res.ok) throw new Error('Failed to fetch user engagement analytics');
+  return res.json();
+};
+

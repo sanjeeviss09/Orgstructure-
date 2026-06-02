@@ -100,26 +100,9 @@ export const ManageInterns: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 slide-up">
-      {/* Top Config Row */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-500" /> Certificate Template Configuration
-          </h2>
-          <p className="text-sm text-slate-500 font-medium">Upload a base image template for automatic certificate generation.</p>
-        </div>
-        <div>
-           <label className="relative flex items-center justify-center px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg cursor-pointer hover:bg-slate-800 transition-colors">
-              <UploadCloud className="w-4 h-4 mr-2" />
-              {uploadingTemplate ? 'Uploading...' : 'Upload Template Image'}
-              <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" onChange={handleTemplateUpload} disabled={uploadingTemplate} />
-           </label>
-        </div>
-      </div>
-
-      {/* Interns Table */}
-      <div className="glass-panel overflow-hidden">
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 slide-up items-start">
+      {/* Interns Table (Takes up 3 columns) */}
+      <div className="xl:col-span-3 glass-panel overflow-hidden">
         <div className="p-6 border-b border-slate-200">
           <h2 className="text-xl font-black text-slate-900">Intern Directory</h2>
         </div>
@@ -215,6 +198,23 @@ export const ManageInterns: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Side Config Section (Takes up 1 column) */}
+      <div className="xl:col-span-1 glass-panel p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2">
+            <FileText className="w-5 h-5 text-indigo-500" /> Certificate Template
+          </h2>
+          <p className="text-sm text-slate-500 font-medium leading-relaxed">
+            Upload a base image template for automatic certificate generation.
+          </p>
+        </div>
+        <label className="relative flex items-center justify-center px-4 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl cursor-pointer hover:bg-slate-800 transition-colors w-full shadow-sm">
+           <UploadCloud className="w-5 h-5 mr-2" />
+           {uploadingTemplate ? 'Uploading...' : 'Upload Template'}
+           <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" onChange={handleTemplateUpload} disabled={uploadingTemplate} />
+        </label>
       </div>
     </div>
   );

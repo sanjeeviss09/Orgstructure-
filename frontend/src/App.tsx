@@ -6,18 +6,20 @@ import { EmployeeManager } from './components/EmployeeManager';
 import { EmployeeDetails } from './components/EmployeeDetails';
 import { DepartmentAnalytics } from './components/DepartmentAnalytics';
 import { WellnessModule } from './components/WellnessModule';
+import { AdminChatWidget } from './components/AdminChatWidget';
 import { TargetSettings } from './components/TargetSettings';
 import { DetailedAnalytics } from './components/DetailedAnalytics';
 import { InternDashboard } from './components/InternDashboard';
 import { ManageInterns } from './components/ManageInterns';
+import { UserAnalytics } from './components/UserAnalytics';
 import { fetchEmployees, Employee, AuthUser, DEFAULT_AVATAR } from './lib/api';
-import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, HeartPulse, GraduationCap, ClipboardList } from 'lucide-react';
+import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, MessageSquare, GraduationCap, ClipboardList, BarChart2 } from 'lucide-react';
 
 export type Role = 'Admin' | 'Management' | 'HOD' | 'Manager' | 'Employee' | 'Intern';
-type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns';
+type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns' | 'user_analytics';
 
 const ROLE_ACCESS: Record<Role, Tab[]> = {
-  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'appraisals', 'templates', 'recruitment'],
+  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'user_analytics', 'appraisals', 'templates', 'recruitment'],
   Management: ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals'],
   HOD:        ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals'],
   Manager:    ['dashboard', 'orgchart', 'wellness'],
@@ -125,8 +127,9 @@ function App() {
     { id: 'dashboard' as Tab, label: 'My Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'orgchart'  as Tab, label: 'Org Structure', icon: <Network className="w-5 h-5" /> },
     { id: 'directory' as Tab, label: 'Directory',     icon: <Users className="w-5 h-5" /> },
-    { id: 'wellness'  as Tab, label: 'Wellness & Feedback', icon: <HeartPulse className="w-5 h-5" /> },
+    { id: 'wellness'  as Tab, label: 'Support & Feedback', icon: <MessageSquare className="w-5 h-5" /> },
     { id: 'manage_interns' as Tab, label: 'Manage Interns', icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'user_analytics' as Tab, label: 'User Analytics', icon: <BarChart2 className="w-5 h-5" /> },
     { id: 'intern_dashboard' as Tab, label: 'My Internship', icon: <GraduationCap className="w-5 h-5" /> },
     { id: 'appraisals' as Tab, label: 'Appraisals',   icon: <Star className="w-5 h-5" /> },
     { id: 'templates' as Tab, label: 'Templates',     icon: <FileText className="w-5 h-5" /> },
@@ -219,7 +222,8 @@ function App() {
               {activeTab === 'directory' && 'Employee Master'}
               {activeTab === 'details' && 'Employee Details'}
               {activeTab === 'deptAnalytics' && 'Department Analytics'}
-              {activeTab === 'wellness' && 'Employee Feedback & Emotional Wellness'}
+              {activeTab === 'wellness' && 'Support & Feedback'}
+              {activeTab === 'user_analytics' && 'User Analytics'}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5 font-medium">
               {activeTab === 'dashboard' && `Viewing as ${activeRole} · ${employees.length} employees across Axxel Corp`}
@@ -227,9 +231,10 @@ function App() {
               {activeTab === 'directory' && 'Complete employee records · Import, search, and manage'}
               {activeTab === 'details' && 'Detailed profile, team, and budget access'}
               {activeTab === 'deptAnalytics' && 'KPIs, budget tracking, and employee distribution'}
-              {activeTab === 'wellness' && 'Confidential feedback, suggestions, and emotional support centre.'}
+              {activeTab === 'wellness' && 'Confidential feedback, suggestions, and admin support.'}
               {activeTab === 'manage_interns' && 'Oversee intern onboarding, reports, and generate certificates.'}
               {activeTab === 'intern_dashboard' && 'Submit daily learnings and track your internship progress.'}
+              {activeTab === 'user_analytics' && 'Track individual dashboard responsiveness, engagement and interaction quality.'}
             </p>
           </div>
 
@@ -322,6 +327,10 @@ function App() {
             />
           )}
 
+          {activeTab === 'user_analytics' && (
+            <UserAnalytics />
+          )}
+
           {['appraisals', 'templates', 'recruitment'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border border-slate-200/80 shadow-sm min-h-[50vh]">
               <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mb-6">
@@ -340,6 +349,9 @@ function App() {
       <footer className="border-t border-slate-200 mt-16 py-6 text-center text-xs text-slate-400 font-semibold">
         Axxel Org Structure · Axxel Corp © 2026 · Secured by blackdevil system SSS
       </footer>
+
+      {/* Global Support Chat Widget */}
+      <AdminChatWidget user={user} employees={employees} />
     </div>
   );
 }

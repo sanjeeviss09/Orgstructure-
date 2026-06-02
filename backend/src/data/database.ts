@@ -35,6 +35,7 @@ export interface Employee {
   total_experience?: string;
   education_qualification?: string;
   history?: EmployeeHistoryEvent[];
+  sub_function?: string;
 }
 
 export interface User {
@@ -195,7 +196,7 @@ const syncUsersWithEmployees = (db: DB): DB => {
 
 const readDb = (): DB => {
   const data = fs.readFileSync(DB_PATH, 'utf-8');
-  const parsed = JSON.parse(data);
+  const parsed = JSON.parse(data.replace(/^\uFEFF/, ''));
   if (!parsed.users) parsed.users = [];
   if (!parsed.employees) parsed.employees = [];
   if (!parsed.appraisals) parsed.appraisals = [];
@@ -413,4 +414,12 @@ export const updateHRTargets = (targets: HRTargets): HRTargets => {
   db.hr_targets = targets;
   writeDb(db);
   return db.hr_targets;
+};
+
+export const resetDatabaseData = (): void => {
+  const seedPath = path.join(__dirname, 'db_seed.json');
+  if (fs.existsSync(seedPath)) {
+    const data = fs.readFileSync(seedPath, 'utf-8');
+    fs.writeFileSync(DB_PATH, data, 'utf-8');
+  }
 };

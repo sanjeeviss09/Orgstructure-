@@ -136,13 +136,16 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
     const newEmps: Employee[] = [];
     const buSet = new Set<string>();
     const deptSet = new Set<string>();
+    const subFuncSet = new Set<string>();
 
     result.forEach(e => {
       const bu = e.business_unit?.trim();
       const dept = e.department?.trim() || 'General';
+      const subFunc = e.sub_function?.trim();
       
       const buId = bu ? `bu-${bu}` : null;
       const deptId = `dept-${bu || 'none'}-${dept}`;
+      const subFuncId = subFunc ? `sub-${deptId}-${subFunc}` : null;
       
       if (bu && !buSet.has(buId!)) {
         buSet.add(buId!);
@@ -188,18 +191,46 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
         });
       }
 
-      let newReportingTo = deptId;
+      if (subFunc && !subFuncSet.has(subFuncId!)) {
+        subFuncSet.add(subFuncId!);
+        newEmps.push({
+          id: subFuncId!,
+          emp_id: '',
+          full_name: subFunc,
+          designation: 'Sub Function',
+          business_unit: bu || '',
+          department: dept,
+          sub_function: subFunc,
+          employment_status: 'Active',
+          role_tier: bu ? 3 : 2, // Depends on BU
+          reporting_to_id: deptId,
+          photo_url: '',
+          company_name: 'Axxel',
+          email_official: '',
+          ctc_annual: 0,
+          ctc_currency: 'INR',
+          budget_allocated: 0,
+          dashboard_access: 'No'
+        });
+      }
+
+      let newReportingTo = subFuncId || deptId;
       if (e.reporting_to_id) {
         const mgr = result.find(m => m.id === e.reporting_to_id);
-        if (mgr && mgr.department === e.department && mgr.business_unit === e.business_unit) {
+        if (mgr && mgr.department === e.department && mgr.business_unit === e.business_unit && mgr.sub_function === e.sub_function) {
           newReportingTo = mgr.id;
         }
       }
 
+      let shift = 0;
+      if (bu) shift++;
+      shift++; // for dept
+      if (subFunc) shift++; // for sub function
+
       newEmps.push({
         ...e,
         reporting_to_id: newReportingTo,
-        role_tier: e.role_tier + (bu ? 2 : 1)
+        role_tier: e.role_tier + shift
       });
     });
     
@@ -746,6 +777,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
                 <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">
                   <Tag className="w-3.5 h-3.5 text-slate-400" /> {selected.department}
                 </span>
+                {selected.sub_function && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">
+                    <GitBranch className="w-3.5 h-3.5 text-slate-400" /> {selected.sub_function}
+                  </span>
+                )}
               </div>
             </div>
 

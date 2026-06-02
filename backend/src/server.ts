@@ -6,7 +6,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import {
   getEmployees, getEmployeeById, addEmployee, updateEmployee,
-  deleteEmployee, bulkDeleteEmployees, bulkAddEmployees, getUserByUsername, Employee
+  deleteEmployee, bulkDeleteEmployees, bulkAddEmployees, getUserByUsername, Employee,
+  resetDatabaseData
 } from './data/database';
 import { internsRouter } from './interns';
 
@@ -431,6 +432,82 @@ app.post('/api/wellness/daily-feedback', (req, res) => {
     res.status(201).json(f);
   } catch (e) {
     res.status(500).json({ error: 'Failed to submit daily feedback' });
+  }
+});
+
+app.post('/api/system/reset', (req, res) => {
+  try {
+    resetDatabaseData();
+    res.json({ success: true, message: 'Database reset to original seeded data successfully.' });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to reset database data' });
+  }
+});
+
+// ─── USER ENGAGEMENT ANALYTICS ───────────────────────────────────────
+app.get('/api/analytics/user-engagement', (req, res) => {
+  try {
+    const employees = getEmployees();
+    const dailyFeedbacks = getDailyFeedbacks();
+    const counsellingSessions = getCounsellingSessions();
+
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    const result = employees
+      .map(emp => {
+        // Signal 1: daily feedback submissions (last 30 days) → 40pts max
+        const feedbackCount = dailyFeedbacks.filter(
+          f => f.employee_id === emp.id && new Date(f.date).getTime() >= thirtyDaysAgo
+        ).length;
+        const feedbackScore = Math.min(40, feedbackCount * 8); // each submission = 8pts, cap 40
+
+        // Signal 2: chat messages sent (all time, reflects overall comms) → 30pts max
+        let chatCount = 0;
+        counsellingSessions.forEach(s => {
+          if (s.employee_id === emp.id || s.counsellor_id === emp.id) {
+            chatCount += s.messages.filter(m => m.sender_id === emp.id).length;
+          }
+        });
+        const chatScore = Math.min(30, chatCount * 6); // each msg = 6pts, cap 30
+
+        // Signal 3: seeded login activity based on join date hash → 30pts max
+        // Produces a stable 0–30 value per employee without real telemetry
+        const seed = emp.id.charCodeAt(0) + emp.id.charCodeAt(emp.id.length - 1);
+        const joinMs = emp.join_date ? new Date(emp.join_date).getTime() : 0;
+        const daysSinceJoin = Math.floor((now - joinMs) / (1000 * 60 * 60 * 24));
+        const loginDays = Math.min(30, Math.floor(((seed * 7 + daysSinceJoin) % 30)));
+        const loginScore = Math.round((loginDays / 30) * 30);
+
+        const score = feedbackScore + chatScore + loginScore;
+        const rating: 'Good' | 'Okay' | 'Low Interactive' =
+          score >= 70 ? 'Good' : score >= 40 ? 'Okay' : 'Low Interactive';
+
+        return {
+          employee_id: emp.id,
+          full_name: emp.full_name,
+          department: emp.department,
+          designation: emp.designation,
+          business_unit: emp.business_unit,
+          dashboard_access: emp.dashboard_access,
+          employment_status: emp.employment_status,
+          photo_url: emp.photo_url,
+          join_date: emp.join_date,
+          feedback_count: feedbackCount,
+          chat_count: chatCount,
+          login_days: loginDays,
+          feedback_score: feedbackScore,
+          chat_score: chatScore,
+          login_score: loginScore,
+          score,
+          rating,
+        };
+      });
+
+    res.json(result);
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to compute user engagement analytics', details: e.message });
   }
 });
 

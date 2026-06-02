@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { 
   AuthUser, Employee, WellnessQuestionnaire, WellnessAssignment, 
   CounsellingSession, fetchQuestionnaires, 
-  fetchAssignments, createQuestionnaire, 
+  fetchAssignments, createQuestionnaire, createAssignment,
   submitWellnessResponse, fetchCounsellingSessions, 
   createCounsellingSession, sendCounsellingMessage,
-  DailyFeedback, fetchDailyFeedbacks, submitDailyFeedback
+  DailyFeedback, fetchDailyFeedbacks, submitDailyFeedback,
+  resetDatabase, WellnessQuestion
 } from '../lib/api';
 import { 
-  Heart, MessageSquare, ClipboardList, Send, ShieldAlert, 
-  Star, Activity, FileText, Bell, CheckCircle, BarChart3, Edit3, X
+  MessageSquare, ClipboardList, Send, ShieldAlert, 
+  Star, Activity, FileText, Bell, CheckCircle, BarChart3, Edit3,
+  Plus, Trash2, Users
 } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
@@ -29,22 +31,34 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
   const [sessions, setSessions] = useState<CounsellingSession[]>([]);
   const [dailyFeedbacks, setDailyFeedbacks] = useState<DailyFeedback[]>([]);
   
-  const isAdmin = activeRole === 'Admin' || activeRole === 'Management';
+  const isAdmin = activeRole === 'Admin';
   const canManageSurveys = activeRole === 'HOD' || activeRole === 'Manager';
   
   const [activeTab, setActiveTab] = useState<'admin' | 'manage' | 'surveys' | 'counselling' | 'daily_feedback'>(
     isAdmin ? 'admin' : (canManageSurveys ? 'manage' : 'daily_feedback')
   );
+
+  // ── Questionnaire builder state (Admin only) ──
+  const [qTitle, setQTitle] = useState('');
+  const [qDesc, setQDesc] = useState('');
+  const [qType, setQType] = useState<'WELLNESS' | 'APTITUDE' | 'FEEDBACK' | 'GENERAL'>('WELLNESS');
+  const [qQuestions, setQQuestions] = useState<WellnessQuestion[]>([
+    { id: 'q1', type: 'RATING', text: '' }
+  ]);
+  const [qTargetRoles, setQTargetRoles] = useState<string[]>(['HOD', 'Manager', 'Employee']);
+  const [qSaving, setQSaving] = useState(false);
+
+  const ASSIGNABLE_ROLES = ['Admin', 'HOD', 'Manager', 'Employee', 'Intern'];
   
   const [counsellingInput, setCounsellingInput] = useState('');
   const [dfRating, setDfRating] = useState<number>(3);
   const [dfQueries, setDfQueries] = useState('');
   const [dfSuggestions, setDfSuggestions] = useState('');
   
-  const [adminReplySessionId, setAdminReplySessionId] = useState<string | null>(null);
   const [adminReplyText, setAdminReplyText] = useState('');
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
-  const myEmpId = loggedInUser.employee_id || employees[0]?.id;
+  const myEmpId = loggedInUser.employee_id || loggedInUser.id;
 
   useEffect(() => {
     fetchData();
@@ -105,10 +119,20 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
     try {
       await sendCounsellingMessage(sessionId, adminReplyText, myEmpId);
       setAdminReplyText('');
-      setAdminReplySessionId(null);
       fetchData();
     } catch(e) {
       alert('Failed to send reply');
+    }
+  };
+
+  const handleResetData = async () => {
+    if (!window.confirm("Are you sure you want to reset all application data to the original demo values? All custom modifications will be lost.")) return;
+    try {
+      await resetDatabase();
+      alert("Database reset successfully!");
+      window.location.reload();
+    } catch (e) {
+      alert("Failed to reset data");
     }
   };
 
@@ -138,7 +162,7 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
           <Activity className="w-6 h-6 text-purple-600" /> Executive Wellness Analytics
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="glass-panel p-5">
             <h3 className="text-sm font-bold text-slate-500">Total Employees</h3>
             <div className="text-3xl font-black text-slate-900">{employees.length}</div>
@@ -155,6 +179,12 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
             <h3 className="text-sm font-bold text-blue-600 flex items-center gap-1"><Bell className="w-4 h-4"/> Notify Pending</h3>
             <button className="mt-3 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-sm w-full hover:bg-blue-700 transition-colors" onClick={() => alert("Mock: Sending reminder emails to pending employees via SMTP...")}>
               Send Reminder
+            </button>
+          </div>
+          <div className="glass-panel p-5 bg-gradient-to-br from-red-50 to-rose-50/50">
+            <h3 className="text-sm font-bold text-red-600 flex items-center gap-1">Reset Database</h3>
+            <button className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-755 text-white font-bold rounded-lg text-sm w-full transition-colors" onClick={handleResetData}>
+              Reset Demo Data
             </button>
           </div>
         </div>
@@ -211,7 +241,7 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
                     <div className="bg-white p-3 rounded-lg border border-slate-200">
                       <strong className="text-slate-500 block mb-1 text-xs uppercase">Workload Rating</strong>
                       <div className="flex items-center gap-1">
-                        <Star className={`w-4 h-4 ${f.workload_rating >= 4 ? 'text-rose-500' : 'text-amber-500'} fill-current`} />
+                        <Star className={`w-4 h-4 ${f.workload_rating >= 4 ? 'text-red-500' : 'text-amber-500'} fill-current`} />
                         <span className="font-bold">{f.workload_rating}/5</span>
                         <span className="text-slate-400 ml-1">({f.workload_rating === 1 ? 'Very Light' : f.workload_rating === 3 ? 'Manageable' : f.workload_rating === 5 ? 'Overwhelming' : 'Moderate'})</span>
                       </div>
@@ -232,22 +262,57 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
           </div>
         </div>
 
-        {/* Private Counselling Management for Admin */}
-        <div className="glass-panel p-6 mt-6 border-t-4 border-rose-500">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Heart className="w-5 h-5 text-rose-500" /> Private Counselling Management
-          </h3>
-          <p className="text-sm text-slate-500 mb-4">Respond confidentially to employee concerns and emotional stress.</p>
-          <div className="space-y-4">
-            {sessions.map(s => {
-              const emp = employees.find(e => e.id === s.employee_id);
-              const isReplying = adminReplySessionId === s.id;
-              
-              return (
-                <div key={s.id} className="p-4 border border-slate-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 font-bold">
+        {/* Private Support Chat Management for Admin */}
+        <div className="glass-panel p-0 mt-6 border-t-4 border-indigo-600 overflow-hidden flex flex-col md:flex-row min-h-[500px]">
+          
+          {/* Left sidebar: list of sessions */}
+          <div className="w-full md:w-1/3 border-r border-slate-200 bg-slate-50 flex flex-col max-h-[600px]">
+            <div className="p-5 border-b border-slate-200 bg-white">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-indigo-600" /> Admin Support Inbox
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">Respond confidentially to employee support queries.</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {sessions.length === 0 ? (
+                <div className="p-6 text-center text-sm text-slate-400 italic">No active support sessions.</div>
+              ) : (
+                sessions.map(s => {
+                  const emp = employees.find(e => e.id === s.employee_id);
+                  const isSelected = selectedSessionId === s.id;
+                  return (
+                    <div 
+                      key={s.id} 
+                      onClick={() => setSelectedSessionId(s.id)} 
+                      className={`p-4 border-b border-slate-200 cursor-pointer transition-colors ${isSelected ? 'bg-white border-l-4 border-l-indigo-600 shadow-sm' : 'hover:bg-white border-l-4 border-l-transparent'}`}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="font-bold text-slate-800 text-sm truncate">{emp?.full_name || 'Unknown'}</div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full shrink-0">
+                          {s.messages.length} msg
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">{emp?.designation || ''}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right side: Chat box */}
+          <div className="w-full md:w-2/3 flex flex-col bg-white max-h-[600px]">
+            {selectedSessionId ? (
+              (() => {
+                const s = sessions.find(x => x.id === selectedSessionId);
+                const emp = employees.find(e => e.id === s?.employee_id);
+                if (!s) return null;
+                
+                return (
+                  <div className="flex flex-col h-full">
+                    <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-white shrink-0">
+                      <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold shrink-0">
                         {emp?.full_name?.charAt(0) || '?'}
                       </div>
                       <div>
@@ -255,112 +320,259 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
                         <div className="text-xs text-slate-500">{emp?.designation || ''}</div>
                       </div>
                     </div>
-                    <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 rounded-full">
-                      {s.messages.length} messages
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3 mb-4 max-h-60 overflow-y-auto pr-2">
-                    {s.messages.map((m, i) => (
-                      <div key={i} className={`flex ${m.sender_id === s.employee_id ? 'justify-start' : 'justify-end'}`}>
-                         <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${m.sender_id === s.employee_id ? 'bg-slate-100 text-slate-800 rounded-bl-sm' : 'bg-rose-500 text-white rounded-br-sm'}`}>
-                           {m.text}
-                         </div>
-                      </div>
-                    ))}
-                  </div>
+                    
+                    <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
+                      {s.messages.map((m, i) => (
+                        <div key={i} className={`flex ${m.sender_id === s.employee_id ? 'justify-start' : 'justify-end'}`}>
+                          <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${m.sender_id === s.employee_id ? 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm shadow-sm' : 'bg-indigo-600 text-white rounded-br-sm shadow-sm'}`}>
+                            {m.text}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
-                  {isReplying ? (
-                    <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+                    <div className="p-3 bg-white border-t border-slate-200 flex gap-2 shrink-0">
                       <input 
                         type="text" 
                         value={adminReplyText}
                         onChange={e => setAdminReplyText(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleAdminReply(s.id)}
                         placeholder="Type a confidential reply..."
-                        className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm"
+                        className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 text-sm"
                       />
-                      <button onClick={() => handleAdminReply(s.id)} className="p-2.5 bg-rose-500 text-white rounded-xl hover:bg-rose-600">
+                      <button onClick={() => handleAdminReply(s.id)} className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-750 transition-colors shadow-sm">
                         <Send className="w-5 h-5" />
                       </button>
-                      <button onClick={() => { setAdminReplySessionId(null); setAdminReplyText(''); }} className="p-2.5 bg-slate-200 text-slate-600 rounded-xl hover:bg-slate-300">
-                        <X className="w-5 h-5" />
-                      </button>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setAdminReplySessionId(s.id)}
-                      className="w-full py-2 bg-rose-50 text-rose-600 font-bold text-sm rounded-lg hover:bg-rose-100 transition-colors mt-2"
-                    >
-                      Reply Privately
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {sessions.length === 0 && <p className="text-slate-500 text-sm italic">No active private counselling sessions.</p>}
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-6 bg-slate-50/30">
+                <MessageSquare className="w-16 h-16 text-slate-200 mb-4" />
+                <p className="font-bold text-slate-600 text-lg">Select a conversation</p>
+                <p className="text-sm mt-2 text-center max-w-xs">Click on an employee from the list to view their messages and reply privately.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   };
 
+  const handleAddQuestion = () => {
+    setQQuestions(prev => [
+      ...prev,
+      { id: `q${Date.now()}`, type: 'PARAGRAPH', text: '' }
+    ]);
+  };
+
+  const handleRemoveQuestion = (id: string) => {
+    setQQuestions(prev => prev.filter(q => q.id !== id));
+  };
+
+  const handleQuestionChange = (id: string, field: 'text' | 'type', value: string) => {
+    setQQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
+  };
+
+  const toggleTargetRole = (role: string) => {
+    setQTargetRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  };
+
+  const handleSaveQuestionnaire = async () => {
+    if (!qTitle.trim()) { alert('Please enter a title.'); return; }
+    if (qQuestions.some(q => !q.text.trim())) { alert('Please fill in all question texts.'); return; }
+    if (qTargetRoles.length === 0) { alert('Please select at least one target role.'); return; }
+    setQSaving(true);
+    try {
+      const newQ = await createQuestionnaire({
+        title: qTitle,
+        description: qDesc,
+        type: qType,
+        created_by: myEmpId,
+        status: 'ACTIVE',
+        questions: qQuestions
+      });
+      // Assign to all employees whose dashboard_access is in qTargetRoles
+      const targets = employees.filter(e => qTargetRoles.includes(e.dashboard_access));
+      await Promise.all(targets.map(emp =>
+        createAssignment({ questionnaire_id: newQ.id, employee_id: emp.id, assigned_by: myEmpId })
+      ));
+      alert(`✅ Questionnaire created and assigned to ${targets.length} employee(s) across roles: ${qTargetRoles.join(', ')}`);
+      // Reset form
+      setQTitle(''); setQDesc(''); setQType('WELLNESS');
+      setQQuestions([{ id: 'q1', type: 'RATING', text: '' }]);
+      setQTargetRoles(['HOD', 'Manager', 'Employee']);
+      fetchData();
+    } catch (e) {
+      alert('Failed to create questionnaire. Please try again.');
+    } finally {
+      setQSaving(false);
+    }
+  };
+
   const renderManage = () => {
     return (
       <div className="space-y-6 slide-up fade-in pb-10">
         <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-          <ClipboardList className="w-6 h-6 text-indigo-600" /> Questionnaire Management
+          <ClipboardList className="w-6 h-6 text-indigo-600" /> Create & Assign Questionnaire
         </h2>
-        
-        <div className="glass-panel p-6">
-           <h3 className="text-lg font-bold text-slate-900 mb-4">Create New Questionnaire</h3>
-           <div className="space-y-4">
-             <input type="text" placeholder="Questionnaire Title (e.g., Q3 Emotional Wellness Survey)" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
-             <textarea placeholder="Description" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
-             
-             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-               <div className="font-bold text-sm text-slate-700">Question 1</div>
-               <input type="text" placeholder="e.g., How would you rate your stress levels?" className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-               <select className="p-2 border border-slate-200 rounded-lg text-sm w-full max-w-xs">
-                 <option>RATING (1-10 Marks / 5 Stars)</option>
-                 <option>PARAGRAPH</option>
-                 <option>MCQ_SINGLE</option>
-               </select>
-             </div>
-             
-             <button className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-sm hover:bg-indigo-700" onClick={() => {
-                createQuestionnaire({
-                  title: "Q3 Emotional Wellness Survey",
-                  description: "Confidential feedback survey",
-                  type: "WELLNESS",
-                  created_by: myEmpId,
-                  status: "ACTIVE",
-                  questions: [
-                    { id: "q1", type: "RATING", text: "How would you rate your workplace satisfaction?" },
-                    { id: "q2", type: "PARAGRAPH", text: "Please share any specific concerns." }
-                  ]
-                }).then(() => {
-                  alert("Created successfully! Sending mock assignment to all dept employees...");
-                  fetchData();
-                });
-             }}>Save & Assign to Department</button>
-           </div>
+
+        {/* ── Builder Card ── */}
+        <div className="glass-panel p-6 space-y-5">
+          <h3 className="text-lg font-bold text-slate-900">New Questionnaire</h3>
+
+          {/* Title & Description */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Title *</label>
+              <input
+                type="text"
+                value={qTitle}
+                onChange={e => setQTitle(e.target.value)}
+                placeholder="e.g., Q3 Emotional Wellness Survey"
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Type</label>
+              <select
+                value={qType}
+                onChange={e => setQType(e.target.value as any)}
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white"
+              >
+                <option value="WELLNESS">Wellness</option>
+                <option value="FEEDBACK">Feedback</option>
+                <option value="APTITUDE">Aptitude</option>
+                <option value="GENERAL">General</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Description</label>
+            <textarea
+              value={qDesc}
+              onChange={e => setQDesc(e.target.value)}
+              placeholder="Brief description shown to the employee before they begin."
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm h-20 resize-none"
+            />
+          </div>
+
+          {/* Target Roles */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" /> Assign To Roles (Management excluded)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ASSIGNABLE_ROLES.map(role => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => toggleTargetRole(role)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    qTargetRoles.includes(role)
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                  }`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              Will assign to <strong className="text-slate-700">{employees.filter(e => qTargetRoles.includes(e.dashboard_access)).length}</strong> employee(s)
+            </p>
+          </div>
+
+          {/* Questions */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Questions *</label>
+              <button
+                type="button"
+                onClick={handleAddQuestion}
+                className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Question
+              </button>
+            </div>
+            {qQuestions.map((q, idx) => (
+              <div key={q.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500">Question {idx + 1}</span>
+                  {qQuestions.length > 1 && (
+                    <button
+                      onClick={() => handleRemoveQuestion(q.id)}
+                      className="text-red-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={q.text}
+                  onChange={e => handleQuestionChange(q.id, 'text', e.target.value)}
+                  placeholder="e.g., How would you rate your workplace satisfaction?"
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                />
+                <select
+                  value={q.type}
+                  onChange={e => handleQuestionChange(q.id, 'type', e.target.value)}
+                  className="p-2 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-indigo-400 text-slate-600"
+                >
+                  <option value="RATING">⭐ Rating (1-5 Stars)</option>
+                  <option value="PARAGRAPH">📝 Paragraph (Free text)</option>
+                  <option value="MCQ_SINGLE">☑ Multiple Choice (Single)</option>
+                </select>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={handleSaveQuestionnaire}
+            disabled={qSaving}
+            className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl shadow hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {qSaving ? (
+              <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Assigning…</>
+            ) : (
+              <><Send className="w-4 h-4" /> Create & Assign to {employees.filter(e => qTargetRoles.includes(e.dashboard_access)).length} Employee(s)</>
+            )}
+          </button>
         </div>
 
+        {/* ── Existing Questionnaires ── */}
         <div className="glass-panel p-6">
-           <h3 className="text-lg font-bold text-slate-900 mb-4">Active Questionnaires</h3>
-           {questionnaires.length === 0 ? <p className="text-slate-500 text-sm italic">No questionnaires created yet.</p> : null}
-           <div className="space-y-3">
-             {questionnaires.map(q => (
-               <div key={q.id} className="p-4 border border-slate-200 rounded-xl flex items-center justify-between">
-                 <div>
-                   <div className="font-bold text-slate-800">{q.title}</div>
-                   <div className="text-xs text-slate-500">{q.questions.length} questions · {q.type}</div>
-                 </div>
-                 <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">{q.status}</span>
-               </div>
-             ))}
-           </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-slate-500" /> Existing Questionnaires
+          </h3>
+          {questionnaires.length === 0 ? (
+            <p className="text-slate-500 text-sm italic">No questionnaires created yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {questionnaires.map(q => {
+                const assigned = assignments.filter(a => a.questionnaire_id === q.id);
+                const completed = assigned.filter(a => a.status === 'COMPLETED');
+                return (
+                  <div key={q.id} className="p-4 border border-slate-200 rounded-xl flex items-center justify-between bg-white/50 hover:bg-white transition-colors">
+                    <div>
+                      <div className="font-bold text-slate-800">{q.title}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {q.questions.length} questions · {q.type} ·
+                        <span className="ml-1 text-emerald-600 font-bold">{completed.length}/{assigned.length} completed</span>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                      q.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                    }`}>{q.status}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -431,12 +643,12 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
 
   const renderCounselling = () => {
     return (
-      <div className="glass-panel p-6 border-t-4 border-rose-500 slide-up fade-in">
+      <div className="glass-panel p-6 border-t-4 border-indigo-600 slide-up fade-in">
         <div className="flex items-center gap-3 mb-6">
-          <Heart className="w-8 h-8 text-rose-500 p-1.5 bg-rose-100 rounded-full" />
+          <MessageSquare className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-50 rounded-full" />
           <div>
-            <h2 className="text-xl font-black text-slate-900">Confidential Counselling Space</h2>
-            <p className="text-xs font-bold text-slate-500 mt-0.5">Share emotional stress privately with HR professionals.</p>
+            <h2 className="text-xl font-black text-slate-900">Confidential Admin Support</h2>
+            <p className="text-xs font-bold text-slate-500 mt-0.5">Securely message HR/Admins with your queries or concerns.</p>
           </div>
         </div>
         
@@ -450,7 +662,7 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
             ) : (
               sessions[0].messages.map((m, i) => (
                 <div key={i} className={`flex ${m.sender_id === myEmpId ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${m.sender_id === myEmpId ? 'bg-rose-500 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'}`}>
+                  <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${m.sender_id === myEmpId ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'}`}>
                     {m.text}
                   </div>
                 </div>
@@ -464,9 +676,9 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
               value={counsellingInput}
               onChange={e => setCounsellingInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendCounselling()}
-              className="flex-1 p-2.5 bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent rounded-xl outline-none text-sm" 
+              className="flex-1 p-2.5 bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-600 focus:border-transparent rounded-xl outline-none text-sm" 
             />
-            <button className="p-3 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors" onClick={handleSendCounselling}>
+            <button className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors" onClick={handleSendCounselling}>
               <Send className="w-5 h-5" />
             </button>
           </div>
@@ -496,7 +708,7 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
                   onClick={() => setDfRating(rating)}
                   className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all flex-1 min-w-[80px] ${dfRating === rating ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-300'}`}
                 >
-                  <Star className={`w-6 h-6 ${dfRating >= rating ? (rating >= 4 ? 'text-rose-500' : 'text-amber-500') : 'text-slate-300'} fill-current`} />
+                  <Star className={`w-6 h-6 ${dfRating >= rating ? (rating >= 4 ? 'text-red-500' : 'text-amber-500') : 'text-slate-300'} fill-current`} />
                   <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider text-center leading-tight">
                     {rating === 1 && 'Very Light'}
                     {rating === 2 && 'Light'}
@@ -549,10 +761,11 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
             <Activity className="w-4 h-4 inline mr-2"/> Analytics & Feedback Dashboard
           </button>
         )}
-        
-        {canManageSurveys && (
+
+        {/* Admin can create & assign questionnaires; HOD/Manager can also manage */}
+        {(isAdmin || canManageSurveys) && (
           <button onClick={() => setActiveTab('manage')} className={`px-5 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'manage' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
-            <ClipboardList className="w-4 h-4 inline mr-2"/> Manage Questionnaires
+            <ClipboardList className="w-4 h-4 inline mr-2"/> Questionnaires
           </button>
         )}
 
@@ -565,14 +778,14 @@ export const WellnessModule: React.FC<WellnessModuleProps> = ({ activeRole, logg
           <FileText className="w-4 h-4 inline mr-2"/> My Surveys
         </button>
         
-        <button onClick={() => setActiveTab('counselling')} className={`px-5 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'counselling' ? 'bg-rose-500 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
-          <Heart className="w-4 h-4 inline mr-2"/> Private Counselling
+        <button onClick={() => setActiveTab('counselling')} className={`px-5 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'counselling' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
+          <MessageSquare className="w-4 h-4 inline mr-2"/> Admin Support
         </button>
       </div>
 
       {/* Render Active View */}
       {activeTab === 'admin' && isAdmin && renderAdmin()}
-      {activeTab === 'manage' && canManageSurveys && renderManage()}
+      {activeTab === 'manage' && (isAdmin || canManageSurveys) && renderManage()}
       {activeTab === 'surveys' && renderSurveys()}
       {activeTab === 'counselling' && renderCounselling()}
       {activeTab === 'daily_feedback' && renderDailyFeedback()}

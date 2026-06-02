@@ -62,6 +62,11 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({ employeeId, em
                   <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200/50">
                     <Tag className="w-4 h-4 text-slate-400" /> {employee.department}
                   </span>
+                  {employee.sub_function && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200/50">
+                      <Tag className="w-4 h-4 text-slate-400" /> {employee.sub_function}
+                    </span>
+                  )}
                   <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
                     employee.employment_status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : employee.employment_status === 'Under Notice Period' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'
                   }`}>
