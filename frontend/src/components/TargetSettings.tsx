@@ -477,6 +477,58 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
           </div>
         </div>
 
+        <h3 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-200 pb-2">Dashboard KPIs</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Budgeted Headcount</p>
+            <p className="text-2xl font-black text-indigo-600">
+              {targets.global_planned_headcount ?? targets.departments.reduce((sum, d) => sum + (d.budgeted_hc || 0), 0)}
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Budgeted CTC</p>
+            <p className="text-xl font-black text-emerald-600">
+              ₹{(targets.departments.reduce((sum, d) => sum + (d.budget_allocated || 0), 0)).toLocaleString('en-IN')}
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Department-wise Budget</p>
+            <p className="text-xl font-black text-slate-700">
+              {targets.departments.filter(d => (d.budget_allocated || 0) > 0).length} <span className="text-sm font-semibold text-slate-400">Depts</span>
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Designation-wise Budget</p>
+            <p className="text-xl font-black text-slate-700">
+              {targets.departments.reduce((sum, d) => sum + (d.designations?.filter(ds => (ds.budget_allocated || 0) > 0).length || 0), 0)} <span className="text-sm font-semibold text-slate-400">Roles</span>
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Unit-wise Budget</p>
+            <p className="text-xl font-black text-slate-700">
+              {new Set(employees.map(e => e.business_unit).filter(Boolean)).size} <span className="text-sm font-semibold text-slate-400">Units</span>
+            </p>
+          </div>
+        </div>
+
+        <h3 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-200 pb-2">Covered Modules & Analytics</h3>
+        <div className="flex flex-wrap gap-2 mb-8">
+          {[
+            'Manpower Budget Planning',
+            'Budget vs Actual Analysis',
+            'Recruitment Planning',
+            'Position Management',
+            'Replacement Tracking',
+            'Organization Structure',
+            'Workforce Analytics',
+            'CTC Utilization'
+          ].map(mod => (
+            <span key={mod} className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+              {mod}
+            </span>
+          ))}
+        </div>
+
         <h3 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-200 pb-2">Departmental Budgets & Headcount</h3>
         
         <div className="bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
