@@ -12,16 +12,18 @@ import { DetailedAnalytics } from './components/DetailedAnalytics';
 import { InternDashboard } from './components/InternDashboard';
 import { ManageInterns } from './components/ManageInterns';
 import { UserAnalytics } from './components/UserAnalytics';
-import { fetchEmployees, Employee, AuthUser, DEFAULT_AVATAR } from './lib/api';
-import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, MessageSquare, GraduationCap, ClipboardList, BarChart2 } from 'lucide-react';
+import ReportsCenter from './components/ReportsCenter';
+import { RecruitmentModule } from './components/RecruitmentModule';
+import { fetchEmployees, fetchPositions, Employee, Position, AuthUser, DEFAULT_AVATAR } from './lib/api';
+import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, MessageSquare, GraduationCap, ClipboardList, BarChart2, MessageCircle, PieChart } from 'lucide-react';
 
 export type Role = 'Admin' | 'Management' | 'HOD' | 'Manager' | 'Employee' | 'Intern';
-type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns' | 'user_analytics';
+type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns' | 'user_analytics' | 'reports';
 
 const ROLE_ACCESS: Record<Role, Tab[]> = {
-  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'user_analytics', 'appraisals', 'templates', 'recruitment'],
-  Management: ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals'],
-  HOD:        ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals'],
+  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'user_analytics', 'appraisals', 'templates', 'recruitment', 'reports'],
+  Management: ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports'],
+  HOD:        ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports'],
   Manager:    ['dashboard', 'orgchart', 'wellness'],
   Employee:   ['dashboard', 'orgchart', 'wellness'],
   Intern:     ['intern_dashboard', 'orgchart']
@@ -33,10 +35,12 @@ function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [detailedType, setDetailedType] = useState<'hiring' | 'attrition' | 'budget'>('hiring');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
   const [navHistory, setNavHistory] = useState<{ tab: Tab; employeeId?: string | null; dept?: string | null }[]>(() => [
     { tab: 'dashboard' }
@@ -86,7 +90,10 @@ function App() {
 
   const loadData = async () => {
     setLoading(true);
-    try { setEmployees(await fetchEmployees()); }
+    try { 
+      setEmployees(await fetchEmployees()); 
+      setPositions(await fetchPositions());
+    }
     finally { setLoading(false); }
   };
 
@@ -128,6 +135,7 @@ function App() {
     { id: 'orgchart'  as Tab, label: 'Org Structure', icon: <Network className="w-5 h-5" /> },
     { id: 'directory' as Tab, label: 'Directory',     icon: <Users className="w-5 h-5" /> },
     { id: 'wellness'  as Tab, label: 'Support & Feedback', icon: <MessageSquare className="w-5 h-5" /> },
+    { id: 'reports' as Tab, label: 'Reports', icon: <PieChart className="w-5 h-5" /> },
     { id: 'manage_interns' as Tab, label: 'Manage Interns', icon: <ClipboardList className="w-5 h-5" /> },
     { id: 'user_analytics' as Tab, label: 'User Analytics', icon: <BarChart2 className="w-5 h-5" /> },
     { id: 'intern_dashboard' as Tab, label: 'My Internship', icon: <GraduationCap className="w-5 h-5" /> },
@@ -137,10 +145,12 @@ function App() {
   ].filter(t => allowedTabs.includes(t.id));
 
   return (
-    <div className="min-h-screen mesh-bg">
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/80">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
+    <div className="h-screen flex overflow-hidden mesh-bg">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
+        {/* ✨ Header ✨ */}
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/80">
+        <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-4">
 
           {/* Logo */}
           <div className="flex items-center gap-2.5 shrink-0">
@@ -199,6 +209,18 @@ function App() {
                 <div className="text-xs text-slate-500 font-medium leading-tight">{user.role}</div>
               </div>
               <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to reset all data to the initial mock state? This cannot be undone.')) {
+                    await fetch('http://localhost:3001/api/reset', { method: 'POST' });
+                    window.location.reload();
+                  }
+                }}
+                title="Reset Database to Mock State"
+                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+              <button
                 onClick={handleLogout}
                 title="Sign out"
                 className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors ml-1"
@@ -211,7 +233,7 @@ function App() {
       </header>
 
       {/* ── Main Content ── */}
-      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-7">
+      <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-7">
 
         {/* Page title bar */}
         <div className="flex items-center justify-between mb-6">
@@ -256,11 +278,14 @@ function App() {
               activeRole={activeRole}
               loggedInUser={user}
               employees={employees}
-              onDepartmentClick={navigateToDepartment}
               onChartClick={navigateToDetailedAnalytics}
               onTargetsClick={() => {
                 setActiveTab('targets');
                 setNavHistory([{ tab: 'targets' }]);
+              }}
+              onNavigateToWellness={() => {
+                setActiveTab('wellness');
+                setNavHistory([{ tab: 'wellness' }]);
               }}
             />
           )}
@@ -274,7 +299,7 @@ function App() {
           )}
 
           {activeTab === 'orgchart' && (
-            <OrgChart employees={employees} activeRole={activeRole} onNavigateToDetails={navigateToDetails} onDepartmentClick={navigateToDepartment} />
+            <OrgChart employees={employees} positions={positions} activeRole={activeRole} onNavigateToDetails={navigateToDetails} onDepartmentClick={navigateToDepartment} onRefresh={loadData} />
           )}
 
           {activeTab === 'directory' && (
@@ -331,7 +356,15 @@ function App() {
             <UserAnalytics />
           )}
 
-          {['appraisals', 'templates', 'recruitment'].includes(activeTab) && (
+          {activeTab === 'recruitment' && (
+            <RecruitmentModule activeRole={activeRole} loggedInUser={user} />
+          )}
+
+          {activeTab === 'reports' && (
+            <ReportsCenter />
+          )}
+
+          {['appraisals', 'templates'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border border-slate-200/80 shadow-sm min-h-[50vh]">
               <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mb-6">
                 <Sparkles className="w-8 h-8" />
@@ -345,13 +378,26 @@ function App() {
         </div>
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-slate-200 mt-16 py-6 text-center text-xs text-slate-400 font-semibold">
-        Axxel Org Structure · Axxel Corp © 2026 · Secured by blackdevil system SSS
-      </footer>
+        {/* ── Footer ── */}
+        <footer className="border-t border-slate-200 mt-16 py-6 text-center text-xs text-slate-400 font-semibold">
+          Axxel Org Structure • Axxel Corp © 2026 • Secured by blackdevil system SSS
+        </footer>
+      </div>
 
       {/* Global Support Chat Widget */}
-      <AdminChatWidget user={user} employees={employees} />
+      {isChatOpen ? (
+        <div className="w-[380px] shrink-0 border-l border-slate-200 bg-white hidden xl:block z-40 relative shadow-[-5px_0_15px_rgba(0,0,0,0.03)] transition-all duration-300 transform translate-x-0">
+          <AdminChatWidget user={user} employees={employees} onClose={() => setIsChatOpen(false)} />
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:-translate-y-1 hover:bg-indigo-700 transition-all z-50 shadow-indigo-300/40 pop-in"
+          title="Open Admin Support Chat"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
     </div>
   );
 }

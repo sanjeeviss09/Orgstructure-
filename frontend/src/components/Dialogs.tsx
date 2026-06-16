@@ -12,7 +12,7 @@ export const ConfirmDialog: React.FC<{
 }> = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirm', isDestructive = false }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 fade-in">
       <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-2xl slide-up p-6 relative">
         <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
         <p className="text-sm text-slate-500 mb-6">{message}</p>
@@ -37,7 +37,7 @@ export const AlertDialog: React.FC<{
 }> = ({ isOpen, title, message, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 fade-in">
       <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-2xl slide-up p-6 relative">
         <div className="flex items-center gap-3 mb-2">
           <AlertCircle className="w-6 h-6 text-rose-500" />

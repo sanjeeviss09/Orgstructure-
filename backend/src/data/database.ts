@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const DB_PATH = path.join(__dirname, 'db.json');
 
@@ -11,9 +12,25 @@ export interface EmployeeHistoryEvent {
   notes?: string;
 }
 
+export type PositionStatus = 'A' | 'V' | 'OYJ' | 'RoR' | 'RP' | 'H' | 'F' | 'M' | 'C' | 'T';
+
+export interface Position {
+  id: string; // e.g., P001
+  title: string; // e.g., Software Engineer
+  department: string;
+  business_unit: string;
+  sub_function?: string;
+  reporting_to_position_id: string | null;
+  status: PositionStatus;
+  merged_into_position_id?: string;
+  budgeted_ctc?: number;
+  is_budget_approved?: boolean;
+}
+
 export interface Employee {
   id: string;
   emp_id?: string;
+  position_id?: string;
   full_name: string;
   company_name: string;
   business_unit: string;
@@ -130,6 +147,7 @@ export interface DesignationTarget {
 
 export interface DeptTarget {
   department: string;
+  business_unit?: string;
   budgeted_hc: number;
   budget_allocated: number;
   target_attrition: number;
@@ -144,12 +162,136 @@ export interface HRTargets {
   departments: DeptTarget[];
 }
 
+// ─── RECRUITMENT MODULE SCHEMAS ──────────────────────────────────────
+
+export interface JobRequisition {
+  id: string; // e.g., REQ-001
+  position_title: string;
+  position_code: string;
+  department: string;
+  business_unit: string;
+  location: string;
+  reporting_manager_id: string | null;
+  position_type: 'New Position' | 'Replacement Position';
+  budgeted_ctc: number;
+  grade: string;
+  employment_type: string;
+  number_of_openings: number;
+  required_experience: string;
+  qualification: string;
+  key_skills: string;
+  job_description: string;
+  hiring_justification: string;
+  expected_joining_date: string;
+  status: 'Pending HR' | 'Pending Finance' | 'Pending Final' | 'Approved' | 'Rejected';
+  created_at: string;
+  is_active_link: boolean;
+  link_views: number;
+  applications_received: number;
+}
+
+export type CandidateStatus = 'Applied' | 'Pre-Screening' | 'HR Review' | 'Interview Scheduling' | 'Interview Completed' | 'Selected' | 'Offer Approval' | 'Offer Released' | 'Offer Accepted' | 'Joining' | 'Employee Creation' | 'Rejected' | 'Hold' | 'Withdrawn';
+
+export interface Candidate {
+  id: string;
+  requisition_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile_number: string;
+  location: string;
+  
+  current_company: string;
+  current_designation: string;
+  total_experience: string;
+  relevant_experience: string;
+  current_ctc: number;
+  expected_ctc: number;
+  notice_period: string;
+  reason_for_change?: string;
+  
+  resume_url: string;
+  payslips_url: string;
+  increment_letter_url?: string;
+  offer_letter_url?: string;
+  relieving_letter_url?: string;
+  education_certificates_url?: string;
+
+  status: CandidateStatus;
+  applied_at: string;
+  
+  // Pre-screening
+  qualification_match?: number;
+  experience_match?: number;
+  industry_relevance?: number;
+  technical_fit?: number;
+  communication_skills?: number;
+  salary_alignment?: number;
+  notice_period_feasibility?: number;
+  recruiter_recommendation?: 'Shortlist' | 'Reject' | 'Hold';
+  recruiter_remarks?: string;
+
+  hr_approval_status?: 'Pending' | 'Approved' | 'Rejected' | 'Hold';
+}
+
+export interface Interview {
+  id: string;
+  candidate_id: string;
+  type: 'Online' | 'Face-to-Face';
+  platform?: string;
+  date: string;
+  time: string;
+  interview_panel: string[]; // employee IDs
+  venue_or_link: string;
+  notes: string;
+  status: 'Scheduled' | 'Completed' | 'Cancelled';
+  technical_score?: number;
+  communication_score?: number;
+  domain_knowledge_score?: number;
+  problem_solving_score?: number;
+  behavioural_score?: number;
+  cultural_fit_score?: number;
+  overall_recommendation?: 'Select' | 'Hold' | 'Reject';
+  evaluation_remarks?: string;
+}
+
+export interface Offer {
+  id: string;
+  candidate_id: string;
+  position_id?: string;
+  offered_ctc: number;
+  grade: string;
+  designation: string;
+  joining_date: string;
+  reporting_manager_id: string;
+  status: 'Pending Recruiter' | 'Pending Budget Exception' | 'Pending HR Head' | 'Pending Dept Head' | 'Pending Final' | 'Offer Sent' | 'Offer Accepted' | 'Offer Declined' | 'Offer Expired' | 'Joined';
+  created_at: string;
+}
+
+export interface BudgetException {
+  id: string;
+  offer_id: string;
+  position_id: string;
+  department: string;
+  business_unit: string;
+  budgeted_ctc: number;
+  offered_ctc: number;
+  variance_amount: number;
+  status: 'Pending Dept Head' | 'Pending HR Head' | 'Pending Management' | 'Approved' | 'Rejected';
+  created_at: string;
+}
+
 interface DB {
   users: User[];
   employees: Employee[];
+  positions: Position[];
   appraisals: any[]; // Scaffolding for future feature
   templates: any[];  // Scaffolding for future feature
-  candidates: any[]; // Scaffolding for future feature
+  candidates: Candidate[];
+  job_requisitions: JobRequisition[];
+  interviews: Interview[];
+  offers: Offer[];
+  budget_exceptions: BudgetException[];
   questionnaires: Questionnaire[];
   assignments: Assignment[];
   responses: Response[];
@@ -194,18 +336,88 @@ const syncUsersWithEmployees = (db: DB): DB => {
   return db;
 };
 
+const syncPositionsWithEmployees = (db: DB): DB => {
+  if (!db.positions) db.positions = [];
+  const existingPosIds = new Set(db.positions.map(p => p.id));
+  
+  db.employees.forEach(emp => {
+    let posStatus: PositionStatus = 'A';
+    if (emp.employment_status === 'Resigned on Roll' || emp.employment_status === 'Under Notice Period') posStatus = 'RoR';
+    else if (emp.employment_status === 'Replacement Joined') posStatus = 'RP';
+    else if (emp.employment_status === 'Offered Yet to Join') posStatus = 'OYJ';
+    else if (emp.employment_status === 'Inactive') posStatus = 'V';
+    
+    if (!emp.position_id || !existingPosIds.has(emp.position_id)) {
+      const posId = emp.position_id || `P_${crypto.randomUUID().substring(0, 8)}`;
+      emp.position_id = posId;
+      
+      let reporting_to_position_id: string | null = null;
+      if (emp.reporting_to_id) {
+        const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+        if (mgr) {
+          if (!mgr.position_id) {
+            mgr.position_id = `P_${crypto.randomUUID().substring(0, 8)}`;
+          }
+          reporting_to_position_id = mgr.position_id;
+        }
+      }
+      
+      db.positions.push({
+        id: posId,
+        title: emp.designation || 'Unknown Role',
+        department: emp.department || '',
+        business_unit: emp.business_unit || '',
+        sub_function: emp.sub_function || '',
+        reporting_to_position_id,
+        status: posStatus,
+        budgeted_ctc: 0
+      });
+      existingPosIds.add(posId);
+    } else {
+      const pos = db.positions.find(p => p.id === emp.position_id);
+      if (pos) {
+        pos.status = posStatus;
+        pos.title = emp.designation || pos.title;
+        pos.department = emp.department || pos.department;
+        pos.business_unit = emp.business_unit || pos.business_unit;
+        pos.sub_function = emp.sub_function || pos.sub_function;
+        
+        if (emp.reporting_to_id) {
+          const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+          if (mgr && mgr.position_id) {
+            pos.reporting_to_position_id = mgr.position_id;
+          }
+        } else {
+          pos.reporting_to_position_id = null;
+        }
+      }
+    }
+  });
+
+  return db;
+};
+
+let cachedDb: DB | null = null;
+
 const readDb = (): DB => {
+  if (cachedDb) return cachedDb;
+
   if (!fs.existsSync(DB_PATH)) {
     const seedPath = path.join(__dirname, 'db_seed.json');
     if (fs.existsSync(seedPath)) {
       fs.copyFileSync(seedPath, DB_PATH);
     } else {
-      const emptyDb: DB = {
+      const defaultDb: DB = {
         users: [],
         employees: [],
+        positions: [],
         appraisals: [],
         templates: [],
         candidates: [],
+        job_requisitions: [],
+        interviews: [],
+        offers: [],
+        budget_exceptions: [],
         questionnaires: [],
         assignments: [],
         responses: [],
@@ -218,7 +430,7 @@ const readDb = (): DB => {
         }
       };
       fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-      fs.writeFileSync(DB_PATH, JSON.stringify(emptyDb, null, 2), 'utf-8');
+      fs.writeFileSync(DB_PATH, JSON.stringify(defaultDb, null, 2), 'utf-8');
     }
   }
 
@@ -226,9 +438,14 @@ const readDb = (): DB => {
   const parsed = JSON.parse(data.replace(/^\uFEFF/, ''));
   if (!parsed.users) parsed.users = [];
   if (!parsed.employees) parsed.employees = [];
+  if (!parsed.positions) parsed.positions = [];
   if (!parsed.appraisals) parsed.appraisals = [];
   if (!parsed.templates) parsed.templates = [];
   if (!parsed.candidates) parsed.candidates = [];
+  if (!parsed.job_requisitions) parsed.job_requisitions = [];
+  if (!parsed.interviews) parsed.interviews = [];
+  if (!parsed.offers) parsed.offers = [];
+  if (!parsed.budget_exceptions) parsed.budget_exceptions = [];
   if (!parsed.questionnaires) parsed.questionnaires = [];
   if (!parsed.assignments) parsed.assignments = [];
   if (!parsed.responses) parsed.responses = [];
@@ -240,18 +457,26 @@ const readDb = (): DB => {
     departments: []
   };
   
-  // Auto-sync users if count does not match or if we want to ensure freshness
+  // Auto-sync positions and users
   let db: DB = parsed;
+  db = syncPositionsWithEmployees(db);
+  
   const employeeUserCount = db.users.filter(u => u.employee_id).length;
   if (employeeUserCount !== db.employees.length) {
     db = syncUsersWithEmployees(db);
     fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+  } else {
+    // If syncPositionsWithEmployees added positions, make sure we save them
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
   }
+  cachedDb = db;
   return db;
 };
 
 const writeDb = (db: DB): void => {
-  const syncedDb = syncUsersWithEmployees(db);
+  let syncedDb = syncPositionsWithEmployees(db);
+  syncedDb = syncUsersWithEmployees(syncedDb);
+  cachedDb = syncedDb;
   fs.writeFileSync(DB_PATH, JSON.stringify(syncedDb, null, 2), 'utf-8');
 };
 
@@ -261,7 +486,37 @@ export const getUserByUsername = (username: string): User | undefined =>
   readDb().users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
 // Employee operations
-export const getEmployees = (): Employee[] => readDb().employees;
+export const getEmployees = (): Employee[] => {
+  const db = readDb();
+  let modified = false;
+  const now = new Date().getTime();
+  const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
+
+  db.employees.forEach(emp => {
+    if (emp.employment_status === 'Resigned on Roll' && emp.notice_start_date) {
+      if (now - new Date(emp.notice_start_date).getTime() >= ninetyDaysInMs) {
+        emp.employment_status = 'Inactive';
+        emp.notice_start_date = null;
+        if (!emp.history) emp.history = [];
+        emp.history.push({
+          date: new Date().toISOString(),
+          type: 'STATUS_CHANGE',
+          old_value: 'Resigned on Roll',
+          new_value: 'Inactive',
+          notes: 'Notice period of 90 days completed automatically.'
+        });
+        modified = true;
+      }
+    }
+  });
+
+  if (modified) {
+    writeDb(db);
+  }
+
+  return db.employees;
+};
+export const getPositions = (): Position[] => readDb().positions || [];
 
 export const getEmployeeById = (id: string): Employee | undefined =>
   readDb().employees.find(e => e.id === id);
@@ -275,6 +530,39 @@ export const addEmployee = (employee: Employee): Employee => {
     new_value: employee.employment_status,
     notes: `Joined as ${employee.designation}`
   });
+
+  if (!employee.position_id) {
+    const posId = `P_${crypto.randomUUID().substring(0, 8)}`;
+    employee.position_id = posId;
+
+    let reporting_to_position_id: string | null = null;
+    if (employee.reporting_to_id) {
+      const mgr = db.employees.find(e => e.id === employee.reporting_to_id);
+      if (mgr && mgr.position_id) {
+        reporting_to_position_id = mgr.position_id;
+      }
+    }
+
+    let posStatus: PositionStatus = 'A';
+    if (employee.employment_status === 'Resigned on Roll') posStatus = 'RoR';
+    else if (employee.employment_status === 'Replacement Joined') posStatus = 'RP';
+    else if (employee.employment_status === 'Offered Yet to Join') posStatus = 'OYJ';
+    else if (employee.employment_status === 'Inactive') posStatus = 'V';
+    else if (employee.employment_status === 'Under Notice Period') posStatus = 'RoR';
+
+    if (!db.positions) db.positions = [];
+    db.positions.push({
+      id: posId,
+      title: employee.designation || 'Unknown Role',
+      department: employee.department || '',
+      business_unit: employee.business_unit || '',
+      sub_function: employee.sub_function || '',
+      reporting_to_position_id,
+      status: posStatus,
+      budgeted_ctc: 0
+    });
+  }
+
   db.employees.push(employee);
 
   if (employee.replaced_employee_id) {
@@ -291,6 +579,9 @@ export const addEmployee = (employee: Employee): Employee => {
 
 export const bulkAddEmployees = (employees: Employee[]): Employee[] => {
   const db = readDb();
+  if (!db.positions) db.positions = [];
+
+  // Pass 1: Add history and create position IDs
   employees.forEach(emp => {
     if (!emp.history) emp.history = [];
     emp.history.push({
@@ -299,7 +590,49 @@ export const bulkAddEmployees = (employees: Employee[]): Employee[] => {
       new_value: emp.employment_status,
       notes: `Bulk imported as ${emp.designation}`
     });
+
+    if (!emp.position_id) {
+      emp.position_id = `P_${crypto.randomUUID().substring(0, 8)}`;
+    }
   });
+
+  // Pass 2: Create Position entities and map manager position linkages
+  const empIdToPosId = new Map<string, string>();
+  db.employees.forEach(e => {
+    if (e.position_id) empIdToPosId.set(e.id, e.position_id);
+  });
+  employees.forEach(e => {
+    if (e.position_id) empIdToPosId.set(e.id, e.position_id);
+  });
+
+  employees.forEach(emp => {
+    let reporting_to_position_id: string | null = null;
+    if (emp.reporting_to_id && empIdToPosId.has(emp.reporting_to_id)) {
+      reporting_to_position_id = empIdToPosId.get(emp.reporting_to_id)!;
+    }
+
+    let posStatus: PositionStatus = 'A';
+    if (emp.employment_status === 'Resigned on Roll') posStatus = 'RoR';
+    else if (emp.employment_status === 'Replacement Joined') posStatus = 'RP';
+    else if (emp.employment_status === 'Offered Yet to Join') posStatus = 'OYJ';
+    else if (emp.employment_status === 'Inactive') posStatus = 'V';
+    else if (emp.employment_status === 'Under Notice Period') posStatus = 'RoR';
+
+    const exists = db.positions.some(p => p.id === emp.position_id);
+    if (!exists) {
+      db.positions.push({
+        id: emp.position_id!,
+        title: emp.designation || 'Unknown Role',
+        department: emp.department || '',
+        business_unit: emp.business_unit || '',
+        sub_function: emp.sub_function || '',
+        reporting_to_position_id,
+        status: posStatus,
+        budgeted_ctc: emp.budget_allocated || emp.ctc_annual || 0
+      });
+    }
+  });
+
   db.employees.push(...employees);
   writeDb(db);
   return employees;
@@ -331,6 +664,26 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
       old_value: existing.employment_status,
       new_value: data.employment_status
     });
+
+    if (data.employment_status === 'Resigned on Roll' && !data.notice_start_date && !existing.notice_start_date) {
+      data.notice_start_date = new Date().toISOString();
+    }
+
+    // Update the position's status as well
+    if (existing.position_id) {
+      if (!db.positions) db.positions = [];
+      const posIdx = db.positions.findIndex(p => p.id === existing.position_id);
+      if (posIdx !== -1) {
+        let posStatus: import('./database').PositionStatus = 'A';
+        if (data.employment_status === 'Resigned on Roll') posStatus = 'RoR';
+        else if (data.employment_status === 'Replacement Joined') posStatus = 'RP';
+        else if (data.employment_status === 'Offered Yet to Join') posStatus = 'OYJ';
+        else if (data.employment_status === 'Inactive') posStatus = 'V';
+        else if (data.employment_status === 'Under Notice Period') posStatus = 'RoR';
+        else if (data.employment_status === 'Active') posStatus = 'A';
+        db.positions[posIdx].status = posStatus;
+      }
+    }
   }
 
   db.employees[idx] = { ...existing, ...data, history };
@@ -347,23 +700,63 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
   return db.employees[idx];
 };
 
-export const deleteEmployee = (id: string): boolean => {
+
+export const deleteEmployee = (id: string) => {
   const db = readDb();
-  const idx = db.employees.findIndex(e => e.id === id);
-  if (idx === -1) return false;
-  db.employees.splice(idx, 1);
-  writeDb(db);
-  return true;
+  const index = db.employees.findIndex(e => e.id === id);
+  if (index !== -1) {
+    const deleted = db.employees.splice(index, 1)[0];
+    
+    // Clean up empty positions
+    if (db.positions) {
+      const occupiedPositionIds = new Set(db.employees.map(e => e.position_id));
+      db.positions = db.positions.filter(p => occupiedPositionIds.has(p.id));
+    }
+
+    writeDb(db);
+    return deleted;
+  }
+  return null;
 };
 
 export const bulkDeleteEmployees = (ids: string[]): void => {
   const db = readDb();
   db.employees = db.employees.filter(e => !ids.includes(e.id));
+  
+  // Clean up empty positions
+  if (db.positions) {
+    const occupiedPositionIds = new Set(db.employees.map(e => e.position_id));
+    db.positions = db.positions.filter(p => occupiedPositionIds.has(p.id));
+  }
+  
   writeDb(db);
 };
 
+export const savePositions = (positions: Position[]) => {
+  const db = readDb();
+  db.positions = positions;
+  writeDb(db);
+};
 
-// ─── WELLNESS OPERATIONS ──────────────────────────────────────────────
+export const addPosition = (position: Position) => {
+  const db = readDb();
+  if (!db.positions) db.positions = [];
+  db.positions.push(position);
+  writeDb(db);
+  return position;
+};
+
+export const updatePosition = (id: string, updates: Partial<Position>) => {
+  const db = readDb();
+  if (!db.positions) db.positions = [];
+  const index = db.positions.findIndex(p => p.id === id);
+  if (index !== -1) {
+    db.positions[index] = { ...db.positions[index], ...updates };
+    writeDb(db);
+    return db.positions[index];
+  }
+  return null;
+};// ─── WELLNESS OPERATIONS ──────────────────────────────────────────────
 
 export const getQuestionnaires = (): Questionnaire[] => readDb().questionnaires;
 export const addQuestionnaire = (q: Questionnaire): Questionnaire => {
@@ -439,9 +832,194 @@ export const getHRTargets = (): HRTargets => readDb().hr_targets;
 export const updateHRTargets = (targets: HRTargets): HRTargets => {
   const db = readDb();
   db.hr_targets = targets;
+
+  // Sync vacant positions with targets
+  if (!db.positions) db.positions = [];
+  
+  // Clean up all V positions
+  db.positions = db.positions.filter(p => p.status !== 'V');
+  
+  // Re-generate V positions to meet targets
+  targets.departments.forEach(dept => {
+    const bu = dept.business_unit || '';
+    if (dept.designations && dept.designations.length > 0) {
+      dept.designations.forEach(desig => {
+        const hc = Number(desig.budgeted_hc) || 0;
+        const totalBudget = Number(desig.budget_allocated) || 0;
+        const avgBudget = hc > 0 ? Math.round(totalBudget / hc) : 0;
+        
+        const activeCount = db.positions.filter(p => p.status !== 'V' && p.department === dept.department && (p.business_unit || '') === bu && p.title === desig.designation).length;
+        const vacantNeeded = Math.max(0, hc - activeCount);
+        
+        for (let i = 0; i < vacantNeeded; i++) {
+          db.positions.push({
+            id: `P_${crypto.randomUUID().substring(0, 8)}`,
+            title: desig.designation,
+            department: dept.department,
+            business_unit: bu,
+            reporting_to_position_id: null,
+            status: 'V', 
+            budgeted_ctc: avgBudget,
+            is_budget_approved: true
+          });
+        }
+      });
+    } else {
+      const hc = Number(dept.budgeted_hc) || 0;
+      const totalBudget = Number(dept.budget_allocated) || 0;
+      const avgBudget = hc > 0 ? Math.round(totalBudget / hc) : 0;
+      
+      const activeCount = db.positions.filter(p => p.status !== 'V' && p.department === dept.department && (p.business_unit || '') === bu).length;
+      const vacantNeeded = Math.max(0, hc - activeCount);
+      
+      for (let i = 0; i < vacantNeeded; i++) {
+        db.positions.push({
+          id: `P_${crypto.randomUUID().substring(0, 8)}`,
+          title: "Unspecified Role",
+          department: dept.department,
+          business_unit: bu,
+          reporting_to_position_id: null,
+          status: 'V',
+          budgeted_ctc: avgBudget,
+          is_budget_approved: true
+        });
+      }
+    }
+  });
+
   writeDb(db);
   return db.hr_targets;
 };
+
+// ─── RECRUITMENT OPERATIONS ──────────────────────────────────────────────
+
+export const getJobRequisitions = (): JobRequisition[] => readDb().job_requisitions;
+export const getJobRequisitionById = (id: string): JobRequisition | undefined => readDb().job_requisitions.find(r => r.id === id);
+
+export const addJobRequisition = (req: JobRequisition): JobRequisition => {
+  const db = readDb();
+  db.job_requisitions.push(req);
+  writeDb(db);
+  return req;
+};
+
+export const updateJobRequisition = (id: string, updates: Partial<JobRequisition>): JobRequisition | null => {
+  const db = readDb();
+  const idx = db.job_requisitions.findIndex(r => r.id === id);
+  if (idx > -1) {
+    db.job_requisitions[idx] = { ...db.job_requisitions[idx], ...updates };
+    writeDb(db);
+    return db.job_requisitions[idx];
+  }
+  return null;
+};
+
+export const deleteJobRequisition = (id: string): JobRequisition | null => {
+  const db = readDb();
+  const idx = db.job_requisitions.findIndex(r => r.id === id);
+  if (idx > -1) {
+    const deleted = db.job_requisitions.splice(idx, 1)[0];
+    writeDb(db);
+    return deleted;
+  }
+  return null;
+};
+
+export const getCandidates = (): Candidate[] => readDb().candidates;
+export const getCandidateById = (id: string): Candidate | undefined => readDb().candidates.find(c => c.id === id);
+
+export const addCandidate = (cand: Candidate): Candidate => {
+  const db = readDb();
+  db.candidates.push(cand);
+  writeDb(db);
+  return cand;
+};
+
+export const updateCandidate = (id: string, updates: Partial<Candidate>): Candidate | null => {
+  const db = readDb();
+  const idx = db.candidates.findIndex(c => c.id === id);
+  if (idx > -1) {
+    db.candidates[idx] = { ...db.candidates[idx], ...updates };
+    writeDb(db);
+    return db.candidates[idx];
+  }
+  return null;
+};
+
+export const deleteCandidate = (id: string): Candidate | null => {
+  const db = readDb();
+  const idx = db.candidates.findIndex(c => c.id === id);
+  if (idx > -1) {
+    const deleted = db.candidates.splice(idx, 1)[0];
+    writeDb(db);
+    return deleted;
+  }
+  return null;
+};
+
+export const getInterviews = (): Interview[] => readDb().interviews;
+export const getInterviewById = (id: string): Interview | undefined => readDb().interviews.find(i => i.id === id);
+
+export const addInterview = (interview: Interview): Interview => {
+  const db = readDb();
+  db.interviews.push(interview);
+  writeDb(db);
+  return interview;
+};
+
+export const updateInterview = (id: string, updates: Partial<Interview>): Interview | null => {
+  const db = readDb();
+  const idx = db.interviews.findIndex(i => i.id === id);
+  if (idx > -1) {
+    db.interviews[idx] = { ...db.interviews[idx], ...updates };
+    writeDb(db);
+    return db.interviews[idx];
+  }
+  return null;
+};
+
+export const getOffers = (): Offer[] => readDb().offers;
+export const getOfferById = (id: string): Offer | undefined => readDb().offers.find(o => o.id === id);
+
+export const addOffer = (offer: Offer): Offer => {
+  const db = readDb();
+  db.offers.push(offer);
+  writeDb(db);
+  return offer;
+};
+
+export const updateOffer = (id: string, updates: Partial<Offer>): Offer | null => {
+  const db = readDb();
+  const idx = db.offers.findIndex(o => o.id === id);
+  if (idx > -1) {
+    db.offers[idx] = { ...db.offers[idx], ...updates };
+    writeDb(db);
+    return db.offers[idx];
+  }
+  return null;
+};
+
+export const getBudgetExceptions = (): BudgetException[] => readDb().budget_exceptions || [];
+export const getBudgetExceptionById = (id: string): BudgetException | undefined => readDb().budget_exceptions.find(e => e.id === id);
+export const addBudgetException = (exc: BudgetException): BudgetException => {
+  const db = readDb();
+  if (!db.budget_exceptions) db.budget_exceptions = [];
+  db.budget_exceptions.push(exc);
+  writeDb(db);
+  return exc;
+};
+export const updateBudgetException = (id: string, updates: Partial<BudgetException>) => {
+  const db = readDb();
+  if (!db.budget_exceptions) db.budget_exceptions = [];
+  const index = db.budget_exceptions.findIndex(e => e.id === id);
+  if (index !== -1) {
+    db.budget_exceptions[index] = { ...db.budget_exceptions[index], ...updates };
+    writeDb(db);
+    return db.budget_exceptions[index];
+  }
+  return null;
+};
+
 
 export const resetDatabaseData = (): void => {
   const seedPath = path.join(__dirname, 'db_seed.json');
@@ -450,3 +1028,4 @@ export const resetDatabaseData = (): void => {
     fs.writeFileSync(DB_PATH, data, 'utf-8');
   }
 };
+

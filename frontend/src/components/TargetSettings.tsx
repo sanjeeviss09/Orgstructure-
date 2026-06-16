@@ -33,24 +33,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
       ]);
       
       setEmployees(emps);
-
-      // Find all unique departments from employees
-      const depts = new Set<string>();
-      emps.forEach((e: any) => {
-        if (e.department) depts.add(e.department);
-      });
-      
-      const deptArray = Array.from(depts);
-
-      // Ensure targets has all departments
-      const mergedDepts = [...fetchedTargets.departments];
-      deptArray.forEach(d => {
-        if (!mergedDepts.find(x => x.department === d)) {
-          mergedDepts.push({ department: d, budgeted_hc: 0, budget_allocated: 0, target_attrition: 0, designations: [] });
-        }
-      });
-      
-      setTargets({ ...fetchedTargets, departments: mergedDepts });
+      setTargets(fetchedTargets);
     } catch (e) {
       console.error(e);
     } finally {
@@ -63,20 +46,20 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
     loadData(true);
   }, [loadData]);
 
-  const handleDeptChange = (dept: string, field: keyof DeptTarget, value: number | string) => {
+  const handleDeptChange = (bu: string, dept: string, field: keyof DeptTarget, value: number | string) => {
     setTargets(prev => ({
       ...prev,
       departments: prev.departments.map(d => 
-        d.department === dept ? { ...d, [field]: value } : d
+        (d.business_unit || '') === bu && d.department === dept ? { ...d, [field]: value } : d
       )
     }));
   };
 
-  const handleAddDesignation = (dept: string) => {
+  const handleAddDesignation = (bu: string, dept: string) => {
     setTargets(prev => ({
       ...prev,
       departments: prev.departments.map(d => {
-        if (d.department === dept) {
+        if ((d.business_unit || '') === bu && d.department === dept) {
           return {
             ...d,
             designations: [...(d.designations || []), { designation: '', budgeted_hc: 0, budget_allocated: 0 }]
@@ -86,66 +69,69 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
       })
     }));
     // Auto-expand
-    setExpandedDepts(prev => new Set(prev).add(dept));
+    setExpandedDepts(prev => new Set(prev).add(`${bu}:::${dept}`));
   };
 
-  const handleDesigChange = (dept: string, index: number, field: keyof DesignationTarget, value: string | number) => {
+  const handleDesigChange = (bu: string, dept: string, index: number, field: keyof DesignationTarget, value: string | number) => {
     setTargets(prev => ({
       ...prev,
       departments: prev.departments.map(d => {
-        if (d.department === dept && d.designations) {
+        if ((d.business_unit || '') === bu && d.department === dept && d.designations) {
           const newDesigs = [...d.designations];
           newDesigs[index] = { ...newDesigs[index], [field]: value };
           
-          const sumHc = newDesigs.reduce((sum, curr) => sum + (Number(curr.budgeted_hc) || 0), 0);
-          const sumCost = newDesigs.reduce((sum, curr) => sum + (Number(curr.budget_allocated) || 0), 0);
-          
-          return { ...d, budgeted_hc: sumHc, budget_allocated: sumCost, designations: newDesigs };
+          return {
+            ...d,
+            designations: newDesigs,
+            budgeted_hc: newDesigs.reduce((sum, dg) => sum + (Number(dg.budgeted_hc) || 0), 0),
+            budget_allocated: newDesigs.reduce((sum, dg) => sum + (Number(dg.budget_allocated) || 0), 0)
+          };
         }
         return d;
       })
     }));
   };
 
-  const handleRemoveDesignation = (dept: string, index: number) => {
+  const handleRemoveDesignation = (bu: string, dept: string, index: number) => {
     setTargets(prev => ({
       ...prev,
       departments: prev.departments.map(d => {
-        if (d.department === dept && d.designations) {
-          const newDesigs = [...d.designations];
-          newDesigs.splice(index, 1);
-          
-          const sumHc = newDesigs.reduce((sum, curr) => sum + (Number(curr.budgeted_hc) || 0), 0);
-          const sumCost = newDesigs.reduce((sum, curr) => sum + (Number(curr.budget_allocated) || 0), 0);
-          
-          return { ...d, budgeted_hc: sumHc, budget_allocated: sumCost, designations: newDesigs };
+        if ((d.business_unit || '') === bu && d.department === dept && d.designations) {
+          const newDesigs = d.designations.filter((_, i) => i !== index);
+          return {
+            ...d,
+            designations: newDesigs,
+            budgeted_hc: newDesigs.reduce((sum, dg) => sum + (Number(dg.budgeted_hc) || 0), 0),
+            budget_allocated: newDesigs.reduce((sum, dg) => sum + (Number(dg.budget_allocated) || 0), 0)
+          };
         }
         return d;
       })
     }));
   };
 
-  const handleRemoveDepartment = (deptName: string) => {
+  const handleRemoveDepartment = (bu: string, dept: string) => {
     setConfirmDialog({
       isOpen: true,
       title: 'Remove Department',
-      message: `Are you sure you want to remove the target settings for ${deptName}?`,
+      message: `Are you sure you want to remove the target settings for ${dept}?`,
       isDestructive: true,
       onConfirm: () => {
         setTargets(prev => ({
           ...prev,
-          departments: prev.departments.filter(d => d.department !== deptName)
+          departments: prev.departments.filter(d => !((d.business_unit || '') === bu && d.department === dept))
         }));
         setConfirmDialog(p => ({ ...p, isOpen: false }));
       }
     });
   };
 
-  const toggleDept = (dept: string) => {
+  const toggleDept = (bu: string, dept: string) => {
     setExpandedDepts(prev => {
       const next = new Set(prev);
-      if (next.has(dept)) next.delete(dept);
-      else next.add(dept);
+      const key = `${bu}:::${dept}`;
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -186,24 +172,25 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      const lines = text.split('\\n');
+      const lines = text.split('\n');
       if (lines.length < 2) return;
       
       const newDeptsMap = new Map<string, DeptTarget>();
       
       targets.departments.forEach(d => {
-        newDeptsMap.set(d.department.toLowerCase(), { ...d, designations: [] });
+        newDeptsMap.set(`${d.business_unit || ''}:::${d.department}`.toLowerCase(), { ...d, designations: [] });
       });
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        const [dept, desig, hc, cost] = line.split(',').map(s => s?.trim().replace(/^"|"$/g, ''));
+        const [bu, dept, desig, hc, cost] = line.split(',').map(s => s?.trim().replace(/^"|"$/g, ''));
         if (!dept) continue;
         
-        const deptKey = dept.toLowerCase();
+        const deptKey = `${bu || ''}:::${dept}`.toLowerCase();
         if (!newDeptsMap.has(deptKey)) {
           newDeptsMap.set(deptKey, {
+            business_unit: bu,
             department: dept,
             budgeted_hc: 0,
             budget_allocated: 0,
@@ -240,23 +227,23 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
   };
 
   const downloadTemplate = () => {
-    const headers = ['Department', 'Designation', 'Target HC', 'Target Cost'];
+    const headers = ['Business Unit', 'Department', 'Designation', 'Target HC', 'Target Cost'];
     const rows: string[][] = [];
     targets.departments.forEach(d => {
       if (d.designations && d.designations.length > 0) {
         d.designations.forEach(des => {
-          rows.push([d.department, des.designation, String(des.budgeted_hc), String(des.budget_allocated)]);
+          rows.push([d.business_unit || '', d.department, des.designation, String(des.budgeted_hc), String(des.budget_allocated)]);
         });
       } else {
-        rows.push([d.department, '', String(d.budgeted_hc || 0), String(d.budget_allocated || 0)]);
+        rows.push([d.business_unit || '', d.department, '', String(d.budgeted_hc || 0), String(d.budget_allocated || 0)]);
       }
     });
     
     if (rows.length === 0) {
-      rows.push(['Example Department', 'Software Engineer', '5', '5000000']);
+      rows.push(['Example BU', 'Example Department', 'Software Engineer', '5', '5000000']);
     }
     
-    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\\n');
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
     
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -306,10 +293,10 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
       onConfirm: async () => {
         setConfirmDialog(p => ({ ...p, isOpen: false }));
         
-        // Group active employees by department and designation
         const activeEmps = employees.filter(e => e.employment_status !== 'Inactive');
         
         const deptMap = new Map<string, {
+          business_unit: string;
           department: string;
           budgeted_hc: number;
           budget_allocated: number;
@@ -321,9 +308,10 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
           }>;
         }>();
         
-        // Initialize map with all current target departments to preserve list
         targets.departments.forEach(d => {
-          deptMap.set(d.department, {
+          const key = `${d.business_unit || ''}:::${d.department}`;
+          deptMap.set(key, {
+            business_unit: d.business_unit || '',
             department: d.department,
             budgeted_hc: 0,
             budget_allocated: 0,
@@ -332,12 +320,14 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
           });
         });
         
-        // Process active employees
         activeEmps.forEach(emp => {
-          const deptName = emp.department || 'Unassigned';
-          if (!deptMap.has(deptName)) {
-            deptMap.set(deptName, {
-              department: deptName,
+          const bu = emp.business_unit || '';
+          const dept = emp.department || 'Unassigned';
+          const key = `${bu}:::${dept}`;
+          if (!deptMap.has(key)) {
+            deptMap.set(key, {
+              business_unit: bu,
+              department: dept,
               budgeted_hc: 0,
               budget_allocated: 0,
               target_attrition: 8.5,
@@ -345,7 +335,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
             });
           }
           
-          const deptData = deptMap.get(deptName)!;
+          const deptData = deptMap.get(key)!;
           deptData.budgeted_hc += 1;
           deptData.budget_allocated += (Number(emp.budget_allocated) || Number(emp.ctc_annual) || 0);
           
@@ -364,8 +354,8 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
           }
         });
         
-        // Convert to target settings departments array
         const departmentsArray: DeptTarget[] = Array.from(deptMap.values()).map(d => ({
+          business_unit: d.business_unit,
           department: d.department,
           budgeted_hc: d.budgeted_hc,
           budget_allocated: d.budget_allocated,
@@ -546,24 +536,28 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {targets.departments.map(dept => {
-                const isExpanded = expandedDepts.has(dept.department);
+              {targets.departments.map((dept, i) => {
+                const bu = dept.business_unit || '';
+                const key = `${bu}:::${dept.department}`;
+                const isExpanded = expandedDepts.has(key);
                 
-                // Calculate Actuals for Department
-                const deptEmps = employees.filter(e => e.department === dept.department && e.employment_status !== 'Inactive');
+                const deptEmps = employees.filter(e => e.department === dept.department && (e.business_unit || '') === bu && e.employment_status !== 'Inactive');
                 const actualHc = deptEmps.length;
                 const actualCost = deptEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
                 const vacant = Math.max(0, (dept.budgeted_hc || 0) - actualHc);
 
                 return (
-                  <React.Fragment key={dept.department}>
+                  <React.Fragment key={key + i}>
                     <tr className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-center">
-                        <button onClick={() => toggleDept(dept.department)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 transition">
+                        <button onClick={() => toggleDept(bu, dept.department)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 transition">
                           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                       </td>
-                      <td className="px-4 py-3 font-bold text-slate-800">{dept.department}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-slate-800">{dept.department}</div>
+                        {bu && <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-0.5">{bu}</div>}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <input 
                           type="number" 
@@ -571,7 +565,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
                           value={dept.budgeted_hc || 0}
                           readOnly={dept.designations && dept.designations.length > 0}
                           title={dept.designations && dept.designations.length > 0 ? 'Auto-calculated from designations' : ''}
-                          onChange={(e) => handleDeptChange(dept.department, 'budgeted_hc', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleDeptChange(bu, dept.department, 'budgeted_hc', parseInt(e.target.value) || 0)}
                         />
                       </td>
                       <td className="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50/30">
@@ -584,7 +578,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
                           value={dept.budget_allocated || 0}
                           readOnly={dept.designations && dept.designations.length > 0}
                           title={dept.designations && dept.designations.length > 0 ? 'Auto-calculated from designations' : ''}
-                          onChange={(e) => handleDeptChange(dept.department, 'budget_allocated', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleDeptChange(bu, dept.department, 'budget_allocated', parseInt(e.target.value) || 0)}
                         />
                       </td>
                       <td className="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50/30">
@@ -596,16 +590,16 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button 
-                            onClick={() => handleAddDesignation(dept.department)}
+                            onClick={() => handleAddDesignation(bu, dept.department)}
                             className="p-1.5 text-blue-500 hover:bg-blue-50 hover:text-blue-700 rounded-md transition"
                             title="Add Designation Budget"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => handleRemoveDepartment(dept.department)}
+                            onClick={() => handleRemoveDepartment(bu, dept.department)}
                             className="p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-md transition"
-                            title="Remove Department Target"
+                            title="Remove Target"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -613,7 +607,6 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
                       </td>
                     </tr>
                     
-                    {/* Designations Sub-table */}
                     {isExpanded && (
                       <tr>
                         <td colSpan={8} className="p-0 bg-slate-50 border-t-0">
@@ -634,57 +627,49 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {dept.designations.map((desig, idx) => {
-                                    const desigEmps = deptEmps.filter(e => e.designation === desig.designation);
-                                    const dActualHc = desigEmps.length;
-                                    const dActualCost = desigEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
-                                    const dVacant = Math.max(0, (desig.budgeted_hc || 0) - dActualHc);
+                                  {dept.designations.map((ds, idx) => {
+                                    const desigEmps = deptEmps.filter(e => e.designation === ds.designation);
+                                    const desigHc = desigEmps.length;
+                                    const desigCost = desigEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
 
                                     return (
                                       <tr key={idx} className="hover:bg-slate-50">
                                         <td className="px-3 py-2">
                                           <input 
-                                            type="text" 
-                                            list={`designation-list-${dept.department}`}
-                                            placeholder="e.g. Software Engineer"
-                                            className="form-input w-full text-xs px-2 py-1" 
-                                            value={desig.designation} 
-                                            onChange={e => handleDesigChange(dept.department, idx, 'designation', e.target.value)}
+                                            className="form-input w-full text-xs px-2 py-1"
+                                            placeholder="Designation..."
+                                            value={ds.designation}
+                                            onChange={e => handleDesigChange(bu, dept.department, idx, 'designation', e.target.value)}
                                           />
-                                          <datalist id={`designation-list-${dept.department}`}>
-                                            {Array.from(new Set(employees.map(e => e.designation).filter(Boolean))).map(d => (
-                                              <option key={d as string} value={d as string} />
-                                            ))}
-                                          </datalist>
                                         </td>
                                         <td className="px-3 py-2 text-center">
                                           <input 
                                             type="number" 
                                             className="form-input w-16 mx-auto text-center text-xs px-2 py-1" 
-                                            value={desig.budgeted_hc as any} 
-                                            onChange={e => handleDesigChange(dept.department, idx, 'budgeted_hc', e.target.value === '' ? '' : parseInt(e.target.value))}
+                                            value={ds.budgeted_hc || 0}
+                                            onChange={e => handleDesigChange(bu, dept.department, idx, 'budgeted_hc', parseInt(e.target.value) || 0)}
                                           />
                                         </td>
                                         <td className="px-3 py-2 text-center font-bold text-slate-700 bg-slate-50/50">
-                                          {dActualHc}
+                                          {desigHc}
                                         </td>
                                         <td className="px-3 py-2 text-center">
                                           <input 
                                             type="number" 
                                             className="form-input w-24 mx-auto text-center text-xs px-2 py-1" 
-                                            value={desig.budget_allocated as any} 
-                                            onChange={e => handleDesigChange(dept.department, idx, 'budget_allocated', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                            value={ds.budget_allocated || 0}
+                                            onChange={e => handleDesigChange(bu, dept.department, idx, 'budget_allocated', parseInt(e.target.value) || 0)}
                                           />
                                         </td>
                                         <td className="px-3 py-2 text-center font-bold text-slate-700 bg-slate-50/50">
-                                          {dActualCost.toLocaleString('en-IN')}
+                                          {desigCost.toLocaleString('en-IN')}
                                         </td>
                                         <td className="px-3 py-2 text-center font-bold text-amber-500">
-                                          {dVacant}
+                                          {Math.max(0, (ds.budgeted_hc || 0) - desigHc)}
                                         </td>
                                         <td className="px-3 py-2 text-center">
                                           <button 
-                                            onClick={() => handleRemoveDesignation(dept.department, idx)}
+                                            onClick={() => handleRemoveDesignation(bu, dept.department, idx)}
                                             className="p-1 text-red-400 hover:text-red-600 transition"
                                           >
                                             <Trash2 className="w-3.5 h-3.5" />

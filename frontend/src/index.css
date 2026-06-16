@@ -160,6 +160,126 @@
   border-radius: 8px;
 }
 
+@keyframes thread-flow-h {
+  from { background-position: 0 0; }
+  to { background-position: 12px 0; }
+}
+@keyframes thread-flow-v {
+  from { background-position: 0 0; }
+  to { background-position: 0 12px; }
+}
+
+.animate-thread-h {
+  background: linear-gradient(90deg, #cbd5e1 50%, transparent 50%);
+  background-size: 12px 2px;
+  animation: thread-flow-h 0.6s linear infinite;
+}
+.animate-thread-v {
+  background: linear-gradient(180deg, #cbd5e1 50%, transparent 50%);
+  background-size: 2px 12px;
+  animation: thread-flow-v 0.6s linear infinite;
+}
+
+/* ── Drag & Drop Animations ─────────────────────────────────────────── */
+@keyframes drag-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(0.5deg); }
+  75% { transform: translateY(-1px) rotate(-0.5deg); }
+}
+
+@keyframes drop-zone-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+@keyframes drop-success-ripple {
+  0% { transform: scale(0.95); opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes drag-trail-pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.3; }
+}
+
+@keyframes drag-glow-border {
+  0% { border-color: rgba(99, 102, 241, 0.3); }
+  50% { border-color: rgba(99, 102, 241, 0.8); }
+  100% { border-color: rgba(99, 102, 241, 0.3); }
+}
+
+@keyframes drag-badge-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.1); }
+}
+
+.dragging-source {
+  opacity: 0.4 !important;
+  transform: scale(0.96);
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  filter: grayscale(0.3);
+}
+
+.drag-over-valid {
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(139, 92, 246, 0.04)) !important;
+  animation: drop-zone-pulse 1.2s ease-in-out infinite, drag-glow-border 1.5s ease-in-out infinite;
+  transform: scale(1.02);
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15), inset 0 0 20px rgba(99, 102, 241, 0.03);
+}
+
+.drag-over-valid::after {
+  content: '⬇ Drop Here';
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 800;
+  color: #6366f1;
+  background: white;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  white-space: nowrap;
+  z-index: 50;
+  animation: drag-badge-bounce 0.8s ease-in-out infinite;
+}
+
+.drop-success {
+  animation: drop-success-ripple 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.drag-emp-card {
+  cursor: grab;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.drag-emp-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.drag-emp-card:active {
+  cursor: grabbing;
+  animation: drag-float 1s ease-in-out infinite;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+  z-index: 100;
+}
+
+/* Drag trail thread connector */
+.drag-trail-line {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.4));
+  height: 2px;
+  border-radius: 1px;
+  animation: drag-trail-pulse 0.8s ease-in-out infinite;
+}
+
 @layer components {
   .btn-primary {
     @apply px-4 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap active:scale-[0.98] border border-transparent shadow-sm;

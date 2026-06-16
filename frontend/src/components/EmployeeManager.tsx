@@ -1,5 +1,6 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { Employee, createEmployee, updateEmployee, deleteEmployee, bulkDeleteEmployees, bulkImportEmployees, DEFAULT_AVATAR } from '../lib/api';
+import { STATUS_CONFIG } from './OrgChart';
 import { ConfirmDialog, AlertDialog } from './Dialogs';
 import { Plus, Edit2, Trash2, Mail, Building2, Tag, Upload, Download, CheckCircle, AlertCircle, X, Search, ChevronDown } from 'lucide-react';
 import type { Role } from '../App';
@@ -29,12 +30,57 @@ const downloadTemplate = () => {
   a.href = url; a.download = 'employee_import_template.csv'; a.click();
   URL.revokeObjectURL(url);
 };
+const HEADER_MAP: Record<string, string> = {
+  'emp id': 'emp_id', 'employee id': 'emp_id',
+  'full name': 'full_name', 'name': 'full_name',
+  'email': 'email_official', 'email address': 'email_official', 'official email': 'email_official',
+  'designation': 'designation', 'role': 'designation',
+  'department': 'department', 'dept': 'department',
+  'sub function': 'sub_function', 'sub-function': 'sub_function',
+  'business unit': 'business_unit', 'bu': 'business_unit',
+  'role tier': 'role_tier', 'tier': 'role_tier',
+  'ctc annual': 'ctc_annual', 'annual ctc': 'ctc_annual', 'ctc': 'ctc_annual',
+  'budget allocated': 'budget_allocated', 'budget': 'budget_allocated',
+  'ctc currency': 'ctc_currency', 'currency': 'ctc_currency',
+  'employment status': 'employment_status', 'status': 'employment_status',
+  'dashboard access': 'dashboard_access', 'access': 'dashboard_access',
+  'reporting manager emp id': 'reporting_manager_emp_id', 'reporting manager': 'reporting_manager_emp_id', 'manager id': 'reporting_manager_emp_id',
+  'company name': 'company_name', 'company': 'company_name',
+  'past organization': 'past_organization',
+  'total experience': 'total_experience', 'experience': 'total_experience',
+  'education qualification': 'education_qualification', 'education': 'education_qualification'
+};
+
 const parseCSV = (text: string): Record<string, string>[] => {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  
+  const parseLine = (line: string) => {
+    const result = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        inQuotes = !inQuotes;
+      } else if (line[i] === ',' && !inQuotes) {
+        result.push(cur.trim().replace(/^"|"$/g, ''));
+        cur = '';
+      } else {
+        cur += line[i];
+      }
+    }
+    result.push(cur.trim().replace(/^"|"$/g, ''));
+    return result;
+  };
+
+  const rawHeaders = parseLine(lines[0]);
+  const headers = rawHeaders.map(h => {
+    const clean = h.toLowerCase().trim();
+    return HEADER_MAP[clean] || h.replace(/\s+/g, '_').toLowerCase();
+  });
+  
   return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const values = parseLine(line);
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => { obj[h] = values[i] || ''; });
 
@@ -43,7 +89,23 @@ const parseCSV = (text: string): Record<string, string>[] => {
       const mapping = DESIGNATION_MAP[obj.designation];
       if (!obj.role_tier) obj.role_tier = String(mapping.tier);
       if (!obj.dashboard_access) obj.dashboard_access = mapping.access;
+    } else if (obj.designation) {
+      const d = obj.designation.toLowerCase();
+      if (!obj.role_tier) {
+        if (d.includes('ceo') || d.includes('founder') || d.includes('president') || d.includes('chief')) obj.role_tier = '1';
+        else if (d.includes('vp') || d.includes('vice president') || d.includes('director') || d.includes('head')) obj.role_tier = '2';
+        else if (d.includes('agm') || d.includes('dgm') || d.includes('gm')) obj.role_tier = '3';
+        else if (d.includes('manager') || d.includes('lead')) obj.role_tier = '4';
+        else obj.role_tier = '5';
+      }
+      if (!obj.dashboard_access) {
+        if (['1', '2', '3'].includes(obj.role_tier)) obj.dashboard_access = 'Admin';
+        else if (obj.role_tier === '4') obj.dashboard_access = 'Manager';
+        else obj.dashboard_access = 'Employee';
+      }
     }
+    
+    if (!obj.role_tier) obj.role_tier = '5';
 
     return obj;
   });
@@ -101,6 +163,8 @@ const DESIG_BY_TIER: Record<number, string[]> = {
   4: ['Engineering Manager', 'Product Manager', 'QA Lead', 'QA Manager', 'Product Design Lead', 'Digital Marketing Manager', 'Enterprise Accounts Lead', 'Sales Manager', 'HR Manager', 'Finance Manager', 'Operations Manager', 'Team Lead', 'Tech Lead', 'Project Manager'],
   5: ['Senior Software Engineer', 'Senior Frontend Engineer', 'Senior Backend Engineer', 'Backend Engineer', 'Frontend Engineer', 'Full Stack Engineer', 'Software Engineer', 'UI/UX Designer', 'Graphic Designer', 'QA Automation Specialist', 'QA Engineer', 'SEO Analyst', 'Data Analyst', 'Business Analyst', 'Marketing Analyst', 'Sales Executive', 'Senior Sales Executive', 'Account Executive', 'HR Executive', 'Finance Analyst', 'Accountant', 'DevOps Engineer', 'Cloud Engineer', 'Data Scientist', 'ML Engineer', 'Content Writer', 'Customer Success Manager', 'Trainee', 'Intern'],
 };
+
+
 
 const TIER_OPTS: Record<string, string> = {
   '1': '1 · C-Suite', '2': '2 · VP / CXO', '3': '3 · Head of Dept', '4': '4 · Manager', '5': '5 · Individual'
@@ -261,6 +325,7 @@ const EmployeeModal: React.FC<{
     full_name:         employee?.full_name || '',
     email_official:    employee?.email_official || '',
     department:        employee?.department || '',
+    sub_function:      employee?.sub_function || '',
     designation:       employee?.designation || '',
     business_unit:     employee?.business_unit || '',
     company_name:      employee?.company_name || 'Axxel Corp',
@@ -280,6 +345,7 @@ const EmployeeModal: React.FC<{
     notice_start_date: employee?.notice_start_date?.split('T')[0] || new Date().toISOString().split('T')[0],
   });
   const [autoFilled, setAutoFilled] = useState({ tier: false, access: false });
+  const [isCustomDesignation, setIsCustomDesignation] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState('');
@@ -287,6 +353,14 @@ const EmployeeModal: React.FC<{
   const upd = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const handleDesignation = (d: string) => {
+    if (d === 'Other') {
+      setIsCustomDesignation(true);
+      upd('designation', '');
+      setAutoFilled({ tier: false, access: false });
+      return;
+    }
+    
+    setIsCustomDesignation(false);
     const m = DESIGNATION_MAP[d];
     if (m) {
       setForm(f => ({ ...f, designation: d, role_tier: String(m.tier), dashboard_access: m.access }));
@@ -321,6 +395,7 @@ const EmployeeModal: React.FC<{
       reporting_to_id:  form.reporting_to_id || null,
       replaced_employee_id: form.replaced_employee_id || null,
       photo_url:        form.photo_url.trim(),
+      sub_function:     form.sub_function.trim() || undefined,
     };
     
     // Manage notice start date
@@ -347,7 +422,7 @@ const EmployeeModal: React.FC<{
   const lc = 'block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 fade-in">
       <div className="bg-white border border-slate-200/80 rounded-2xl w-full max-w-2xl shadow-2xl slide-up">
 
         {/* Header */}
@@ -373,7 +448,7 @@ const EmployeeModal: React.FC<{
         </div>
 
         {/* Form with inner scrolling to prevent being cut off on smaller screens */}
-        <div className="px-6 py-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+        <div className="px-6 py-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-2.5 text-sm mb-4">
               <AlertCircle className="w-4 h-4 shrink-0" /><span>{error}</span>
@@ -506,21 +581,47 @@ const EmployeeModal: React.FC<{
               </select>
             </div>
             <div>
+              <label className={lc}>Sub Function</label>
+              <input value={form.sub_function} onChange={e => upd('sub_function', e.target.value)}
+                placeholder="e.g. Sales, TA" className={fc} />
+            </div>
+            <div>
               <label className={lc}>Designation *</label>
-              <select value={form.designation} onChange={e => handleDesignation(e.target.value)} className={fc}>
-                <option value="">— Select Designation —</option>
-                {[1, 2, 3, 4, 5].map(tier => (
-                  <optgroup key={tier} label={`Tier ${tier} · ${['C-Suite', 'VP / CXO', 'Head of Dept', 'Manager', 'Individual'][tier - 1]}`}>
-                    {[...new Set([
-                      ...DESIG_BY_TIER[tier],
-                      ...allDesignations.filter(d => {
-                        const m = DESIGNATION_MAP[d];
-                        return m ? m.tier === tier : false;
-                      })
-                    ])].map(d => <option key={d} value={d}>{d}</option>)}
-                  </optgroup>
-                ))}
-              </select>
+              {isCustomDesignation ? (
+                <div className="flex items-center gap-2">
+                  <input 
+                    value={form.designation} 
+                    onChange={e => upd('designation', e.target.value)} 
+                    placeholder="Enter custom designation" 
+                    className={`${fc} flex-1`}
+                    autoFocus
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => { setIsCustomDesignation(false); upd('designation', ''); }} 
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                    title="Cancel custom designation"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </div>
+              ) : (
+                <select value={form.designation} onChange={e => handleDesignation(e.target.value)} className={fc}>
+                  <option value="">— Select Designation —</option>
+                  {[1, 2, 3, 4, 5].map(tier => (
+                    <optgroup key={tier} label={`Tier ${tier} · ${['C-Suite', 'VP / CXO', 'Head of Dept', 'Manager', 'Individual'][tier - 1]}`}>
+                      {[...new Set([
+                        ...DESIG_BY_TIER[tier],
+                        ...allDesignations.filter(d => {
+                          const m = DESIGNATION_MAP[d];
+                          return m ? m.tier === tier : false;
+                        })
+                      ])].map(d => <option key={d} value={d}>{d}</option>)}
+                    </optgroup>
+                  ))}
+                  <option value="Other" className="font-bold text-blue-600">Other (Add Custom Designation...)</option>
+                </select>
+              )}
             </div>
 
             {/* Row 3: Role Tier (auto-filled) + Dashboard Access (auto-filled) */}
@@ -631,9 +732,17 @@ const EmployeeModal: React.FC<{
             <div>
               <label className={lc}>Employment Status</label>
               <select value={form.employment_status} onChange={e => upd('employment_status', e.target.value)} className={fc}>
-                <option>Active</option>
-                <option>Under Notice Period</option>
-                <option>Inactive</option>
+                <option value="Active">Active</option>
+
+                <option value="Inactive">Inactive</option>
+                <option value="Offered Yet to Join">Offered Yet to Join</option>
+                <option value="Resigned on Roll">Resigned on Roll</option>
+                <option value="Replacement Joined">Replacement Joined</option>
+                <option value="Hold">Hold</option>
+                <option value="Frozen">Frozen</option>
+                <option value="Merged">Merged</option>
+                <option value="Combined Position">Combined Position</option>
+                <option value="Transfer Pending">Transfer Pending</option>
               </select>
             </div>
 
@@ -752,16 +861,16 @@ const BulkImportModal: React.FC<{ onClose: () => void; onSuccess: () => void }> 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 fade-in">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-2xl slide-up">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 fade-in">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-2xl slide-up flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Bulk Import Employees</h2>
             <p className="text-xs text-slate-400 font-semibold mt-0.5">Upload a CSV file to import multiple employee profiles</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"><X className="w-4 h-4 text-slate-500" /></button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <div>
               <div className="text-sm font-bold text-slate-800">Step 1 · Download Template</div>
@@ -836,6 +945,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [buFilter, setBuFilter] = useState('');
+  const [subFuncFilter, setSubFuncFilter] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -847,13 +957,15 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
 
   const departments  = [...new Set(employees.map(e => e.department).filter(Boolean))].sort();
   const businessUnits = [...new Set(employees.map(e => e.business_unit).filter(Boolean))].sort();
+  const subFunctions = useMemo(() => [...new Set(employees.map(e => e.sub_function).filter(Boolean))].sort(), [employees]);
 
   const filtered = employees.filter(emp => {
     const q = search.toLowerCase();
     const matchSearch = !q || emp.full_name.toLowerCase().includes(q) || emp.email_official.toLowerCase().includes(q) || emp.designation.toLowerCase().includes(q);
     const matchDept = !deptFilter || emp.department === deptFilter;
     const matchBU   = !buFilter   || emp.business_unit === buFilter;
-    return matchSearch && matchDept && matchBU;
+    const matchSubFunc = !subFuncFilter || emp.sub_function === subFuncFilter;
+    return matchSearch && matchDept && matchBU && matchSubFunc;
   });
 
   const handleDelete = async (emp: Employee) => {
@@ -1061,6 +1173,16 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
+          {subFunctions.length > 0 && (
+            <div className="relative">
+              <select value={subFuncFilter} onChange={e => setSubFuncFilter(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-slate-800 cursor-pointer min-w-[160px] shadow-sm">
+                <option value="">All Sub Functions</option>
+                {subFunctions.map(sf => <option key={sf} value={sf}>{sf}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          )}
         </div>
 
         {/* Table */}
@@ -1079,7 +1201,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                 )}
                 <th className="px-5 py-3.5">Employee</th>
                 <th className="px-5 py-3.5">Business Unit</th>
-                <th className="px-5 py-3.5">Department / Role</th>
+                <th className="px-5 py-3.5">Department / Sub Function / Role</th>
                 <th className="px-5 py-3.5">Status</th>
                 <th className="px-5 py-3.5">Tier</th>
                 {canViewCTC && <th className="px-5 py-3.5">Budget</th>}
@@ -1112,6 +1234,18 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                       <div className="min-w-0">
                         <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-2">
                           {emp.full_name}
+                          {emp.join_date && (new Date().getTime() - new Date(emp.join_date).getTime()) / (1000 * 3600 * 24) <= 30 && (
+                            <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm border border-indigo-200">NEW</span>
+                          )}
+                          {(() => {
+                            const sc = STATUS_CONFIG[emp.employment_status];
+                            if (!sc) return null;
+                            return (
+                              <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[8px] font-black uppercase tracking-wider border shrink-0 ${sc.bg} ${sc.text} ${sc.border}`} style={{ boxShadow: `0 0 6px ${sc.glow}40` }} title={sc.label}>
+                                <span>{sc.letter}</span>
+                              </span>
+                            );
+                          })()}
                           <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="Employee ID">
                             {emp.emp_id || 'N/A'}
                           </span>
@@ -1130,7 +1264,10 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="font-bold text-slate-700 text-xs truncate max-w-[180px]">{emp.department}</div>
+                    <div className="font-bold text-slate-700 text-xs truncate max-w-[180px]">
+                      {emp.department}
+                      {emp.sub_function && <span className="text-slate-400 ml-1.5 font-medium">/ {emp.sub_function}</span>}
+                    </div>
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1 font-medium">
                       <Tag className="w-3 h-3 text-slate-300 shrink-0" />{emp.designation}
                     </div>
@@ -1157,38 +1294,39 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                               setAlertDialog({ isOpen: true, title: 'Error', message: 'Failed to update status.' });
                             }
                           }}
-                          className={`appearance-none inline-flex items-center gap-1.5 px-3.5 pr-8 py-1 rounded-full text-xs font-bold border cursor-pointer outline-none transition-all ${
-                            emp.employment_status === 'Active'
-                              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100/70'
-                              : emp.employment_status === 'Under Notice Period'
-                                ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100/70'
-                                : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200/70'
-                          }`}
+                          className="appearance-none inline-flex items-center gap-1.5 px-3.5 pr-8 py-1 rounded-full text-xs font-bold border cursor-pointer outline-none transition-all"
                           style={{
-                            backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23${
-                              emp.employment_status === 'Active' ? '15803d' : emp.employment_status === 'Under Notice Period' ? 'b45309' : '475569'
-                            }' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`,
+                            backgroundColor: '#f8fafc',
+                            color: '#334155',
+                            borderColor: '#cbd5e1',
+                            backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`,
                             backgroundPosition: 'right 0.5rem center',
                             backgroundSize: '1.25em 1.25em',
                             backgroundRepeat: 'no-repeat'
                           }}
                         >
                           <option value="Active">Active</option>
-                          <option value="Under Notice Period">Under Notice Period</option>
+
                           <option value="Inactive">Inactive</option>
+                          <option value="Offered Yet to Join">Offered Yet to Join</option>
+                          <option value="Resigned on Roll">Resigned on Roll</option>
+                          <option value="Replacement Joined">Replacement Joined</option>
+                          <option value="Hold">Hold</option>
+                          <option value="Frozen">Frozen</option>
+                          <option value="Merged">Merged</option>
+                          <option value="Combined Position">Combined Position</option>
+                          <option value="Transfer Pending">Transfer Pending</option>
                         </select>
                       </div>
                     ) : (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
-                        emp.employment_status === 'Active'
-                          ? 'bg-green-50 text-green-700 border-green-100'
-                          : emp.employment_status === 'Under Notice Period'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${emp.employment_status === 'Active' ? 'bg-green-500' : emp.employment_status === 'Under Notice Period' ? 'bg-amber-500' : 'bg-slate-400'}`} />
-                        {emp.employment_status}
-                      </span>
+                      (() => {
+                        const sc = STATUS_CONFIG[emp.employment_status] || STATUS_CONFIG['Active'];
+                        return (
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black border ${sc.bg} ${sc.text} ${sc.border}`} title={sc.label} style={{ boxShadow: `0 0 6px ${sc.glow}40` }}>
+                            <span>{sc.letter}</span>
+                          </span>
+                        );
+                      })()
                     )}
                     {emp.employment_status === 'Under Notice Period' && emp.notice_start_date && (
                       <div className="text-[9px] font-bold text-amber-600 mt-1 pl-1">

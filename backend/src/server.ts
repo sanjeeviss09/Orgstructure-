@@ -7,9 +7,10 @@ import rateLimit from 'express-rate-limit';
 import {
   getEmployees, getEmployeeById, addEmployee, updateEmployee,
   deleteEmployee, bulkDeleteEmployees, bulkAddEmployees, getUserByUsername, Employee,
-  resetDatabaseData
+  resetDatabaseData, getPositions, savePositions, addPosition, updatePosition, Position, getOffers
 } from './data/database';
 import { internsRouter } from './interns';
+import { recruitmentRouter } from './recruitment';
 
 dotenv.config();
 
@@ -33,6 +34,17 @@ app.use(express.json({ limit: '5mb' }));
 // Mount interns router
 app.use('/api/interns', internsRouter);
 
+// Mount recruitment router
+app.use('/api/recruitment', recruitmentRouter);
+
+// Serve candidate uploads statically
+import fs from 'fs';
+const UPLOAD_BASE_DIR = 'B:\\Resume';
+if (!fs.existsSync(UPLOAD_BASE_DIR)) {
+  fs.mkdirSync(UPLOAD_BASE_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOAD_BASE_DIR));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Antigravity Backend running.' });
@@ -50,6 +62,16 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ success: true, user: safeUser });
   }
   return res.status(401).json({ error: 'Invalid credentials. Please check your username and password.' });
+});
+
+// ─── SYSTEM MAINTENANCE ────────────────────────────────────────────────────────
+app.post('/api/reset', (req, res) => {
+  try {
+    resetDatabaseData();
+    res.json({ success: true, message: 'Database reset to mock state' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset database' });
+  }
 });
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────
@@ -78,6 +100,29 @@ app.post('/api/employees', (req, res) => {
   }
 });
 
+// ─── POSITIONS ────────────────────────────────────────────────────────
+app.get('/api/positions', (req, res) => {
+  res.json(getPositions());
+});
+
+app.post('/api/positions', (req, res) => {
+  try {
+    const newPos: Position = {
+      id: req.body.id || crypto.randomUUID(),
+      ...req.body
+    };
+    res.status(201).json({ message: 'Position added', position: addPosition(newPos) });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create position' });
+  }
+});
+
+app.put('/api/positions/:id', (req, res) => {
+  const updated = updatePosition(req.params.id, req.body);
+  if (updated) res.json(updated);
+  else res.status(404).json({ error: 'Position not found' });
+});
+
 // ─── BULK IMPORT ──────────────────────────────────────────────────────
 app.post('/api/employees/bulk', (req, res) => {
   try {
@@ -104,9 +149,16 @@ app.post('/api/employees/bulk', (req, res) => {
       return { ...emp, id };
     });
 
+    const parseMoney = (val: any): number => {
+      if (val === undefined || val === null) return 0;
+      if (typeof val === 'number') return val;
+      const cleaned = String(val).replace(/,/g, '').trim();
+      return parseFloat(cleaned) || 0;
+    };
+
     const mapped: Employee[] = newEmployeesWithIds.map((emp: any, idx: number) => {
-      const ctc = parseFloat(emp.ctc_annual) || 0;
-      const budget = parseFloat(emp.budget_allocated) || ctc * 1.2;
+      const ctc = parseMoney(emp.ctc_annual);
+      const budget = parseMoney(emp.budget_allocated) || ctc * 1.2;
 
       let reporting_to_id = null;
       const repKey = emp.reporting_manager_emp_id || emp.reporting || emp.reporting_to || emp.manager_id;
@@ -118,6 +170,10 @@ app.post('/api/employees/bulk', (req, res) => {
         reporting_to_id = empIdToId[emp.reporting_to_id.trim()] || emailToId[emp.reporting_to_id.trim().toLowerCase()] || emp.reporting_to_id;
       }
 
+      if (reporting_to_id === emp.id) {
+        reporting_to_id = null;
+      }
+
       return {
         id: emp.id,
         emp_id: emp.emp_id || `EMP${String(Math.floor(1000 + Math.random() * 9000))}`,
@@ -125,6 +181,7 @@ app.post('/api/employees/bulk', (req, res) => {
         company_name: emp.company_name || 'Axxel Corp',
         business_unit: emp.business_unit || '',
         department: emp.department || '',
+        sub_function: emp.sub_function || '',
         designation: emp.designation || '',
         role_tier: parseInt(emp.role_tier) || 5,
         employment_status: emp.employment_status || 'Active',
@@ -138,7 +195,7 @@ app.post('/api/employees/bulk', (req, res) => {
         past_organization: emp.past_organization || '',
         total_experience: emp.total_experience || '',
         education_qualification: emp.education_qualification || '',
-        join_date: emp.join_date || emp.DOJ || emp.doj || emp['Date of Joining'] || emp.date_of_joining || new Date().toISOString(),
+        join_date: emp.join_date || emp.DOJ || emp.doj || emp['Date of Joining'] || emp.date_of_joining || null,
         notice_start_date: emp.notice_start_date || null,
         replaced_employee_id: emp.replaced_employee_id || null,
       } as any;
@@ -188,24 +245,68 @@ app.delete('/api/employees/:id', (req, res) => {
 // ─── STATS ────────────────────────────────────────────────────────────
 app.get('/api/stats', (req, res) => {
   const employees = getEmployees();
-  const active = employees.filter(e => e.employment_status === 'Active');
-  const totalPayroll = employees.reduce((sum, e) => sum + (e.ctc_annual || 0), 0);
-  const totalBudget = employees.reduce((sum, e) => sum + (e.budget_allocated || 0), 0);
+  const positions = getPositions();
+  const offers = getOffers();
+  const active = employees.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  );
+
+  let totalPayroll = 0;
+  let totalBudget = 0;
+  let totalOffered = 0;
+  let totalHold = 0;
 
   const departments: Record<string, number> = {};
   const businessUnits: Record<string, number> = {};
   const tiers: Record<number, number> = {};
+  
   const deptPayroll: Record<string, number> = {};
   const deptBudget: Record<string, number> = {};
+  const deptOffered: Record<string, number> = {};
+  const deptHold: Record<string, number> = {};
 
-  employees.forEach(emp => {
+  // Aggregate Budgeted CTC from Positions
+  positions.forEach(p => {
+    const b = p.budgeted_ctc || 0;
+    totalBudget += b;
+    if (p.department) {
+      deptBudget[p.department] = (deptBudget[p.department] || 0) + b;
+    }
+  });
+
+  // Aggregate Actual CTC from Active Employees
+  active.forEach(emp => {
+    const ctc = emp.ctc_annual || 0;
+    totalPayroll += ctc;
+    
     if (emp.department) {
       departments[emp.department] = (departments[emp.department] || 0) + 1;
-      deptPayroll[emp.department] = (deptPayroll[emp.department] || 0) + (emp.ctc_annual || 0);
-      deptBudget[emp.department] = (deptBudget[emp.department] || 0) + (emp.budget_allocated || 0);
+      deptPayroll[emp.department] = (deptPayroll[emp.department] || 0) + ctc;
     }
     if (emp.business_unit) businessUnits[emp.business_unit] = (businessUnits[emp.business_unit] || 0) + 1;
     if (emp.role_tier) tiers[emp.role_tier] = (tiers[emp.role_tier] || 0) + 1;
+  });
+
+  // Aggregate Offered and Hold CTC
+  offers.forEach(o => {
+    if (o.status === 'Offer Declined' || o.status === 'Offer Expired') return;
+    
+    // Find department from position
+    const pos = positions.find(p => p.id === o.position_id);
+    const dpt = pos ? pos.department : '';
+
+    if (o.status === 'Pending Budget Exception' || o.status.startsWith('Pending')) {
+      // Hold CTC
+      totalHold += o.offered_ctc;
+      if (dpt) deptHold[dpt] = (deptHold[dpt] || 0) + o.offered_ctc;
+    } else {
+      // Offered CTC
+      totalOffered += o.offered_ctc;
+      if (dpt) deptOffered[dpt] = (deptOffered[dpt] || 0) + o.offered_ctc;
+    }
   });
 
   res.json({
@@ -213,12 +314,16 @@ app.get('/api/stats', (req, res) => {
     activeEmployees: active.length,
     totalPayroll,
     totalBudget,
-    avgCTC: employees.length > 0 ? Math.round(totalPayroll / employees.length) : 0,
+    totalOffered,
+    totalHold,
+    avgCTC: active.length > 0 ? Math.round(totalPayroll / active.length) : 0,
     departments,
     businessUnits,
     tiers,
     deptPayroll,
     deptBudget,
+    deptOffered,
+    deptHold
   });
 });
 
@@ -454,29 +559,38 @@ app.get('/api/analytics/user-engagement', (req, res) => {
     const now = Date.now();
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
 
+    // Precompute feedbacks per employee
+    const feedbackCountMap = new Map<string, number>();
+    for (const f of dailyFeedbacks) {
+      if (new Date(f.date).getTime() >= thirtyDaysAgo) {
+        feedbackCountMap.set(f.employee_id, (feedbackCountMap.get(f.employee_id) || 0) + 1);
+      }
+    }
+
+    // Precompute chat messages per employee
+    const chatCountMap = new Map<string, number>();
+    for (const s of counsellingSessions) {
+      for (const m of s.messages) {
+        chatCountMap.set(m.sender_id, (chatCountMap.get(m.sender_id) || 0) + 1);
+      }
+    }
+
     const result = employees
       .map(emp => {
         // Signal 1: daily feedback submissions (last 30 days) → 40pts max
-        const feedbackCount = dailyFeedbacks.filter(
-          f => f.employee_id === emp.id && new Date(f.date).getTime() >= thirtyDaysAgo
-        ).length;
+        const feedbackCount = feedbackCountMap.get(emp.id) || 0;
         const feedbackScore = Math.min(40, feedbackCount * 8); // each submission = 8pts, cap 40
 
         // Signal 2: chat messages sent (all time, reflects overall comms) → 30pts max
-        let chatCount = 0;
-        counsellingSessions.forEach(s => {
-          if (s.employee_id === emp.id || s.counsellor_id === emp.id) {
-            chatCount += s.messages.filter(m => m.sender_id === emp.id).length;
-          }
-        });
+        const chatCount = chatCountMap.get(emp.id) || 0;
         const chatScore = Math.min(30, chatCount * 6); // each msg = 6pts, cap 30
 
         // Signal 3: seeded login activity based on join date hash → 30pts max
         // Produces a stable 0–30 value per employee without real telemetry
-        const seed = emp.id.charCodeAt(0) + emp.id.charCodeAt(emp.id.length - 1);
+        const seed = emp.id && emp.id.length > 0 ? emp.id.charCodeAt(0) + emp.id.charCodeAt(emp.id.length - 1) : 0;
         const joinMs = emp.join_date ? new Date(emp.join_date).getTime() : 0;
         const daysSinceJoin = Math.floor((now - joinMs) / (1000 * 60 * 60 * 24));
-        const loginDays = Math.min(30, Math.floor(((seed * 7 + daysSinceJoin) % 30)));
+        const loginDays = Math.min(30, Math.max(0, Math.floor(((seed * 7 + daysSinceJoin) % 30))));
         const loginScore = Math.round((loginDays / 30) * 30);
 
         const score = feedbackScore + chatScore + loginScore;
@@ -505,10 +619,172 @@ app.get('/api/analytics/user-engagement', (req, res) => {
       });
 
     res.json(result);
-  } catch (e: any) {
+  } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Failed to compute user engagement analytics', details: e.message });
+    res.status(500).json({ error: 'Failed to compute user engagement analytics', details: (e as any).message });
   }
+});
+
+// ─── ANALYTICS ENHANCEMENTS ───────────────────────────────────────────
+import { getJobRequisitions } from './data/database';
+
+app.get('/api/analytics/attrition', (req, res) => {
+  const employees = getEmployees();
+  const positions = getPositions();
+  
+  const inactive = employees.filter(e => e.employment_status === 'Inactive');
+  const active = employees.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  );
+  const totalEmployees = employees.length;
+  const attritionRate = active.length > 0 ? Number(((inactive.length / totalEmployees) * 100).toFixed(1)) : 0;
+  
+  // Real Monthly Attrition (last 6 months)
+  const monthlyCounts: Record<string, number> = {};
+  for (let i = 0; i < 6; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    monthlyCounts[d.toLocaleString('default', { month: 'short' })] = 0;
+  }
+  
+  inactive.forEach(emp => {
+    let inactiveDate = new Date();
+    if (emp.history) {
+      const inactiveEvent = emp.history.find(h => h.type === 'STATUS_CHANGE' && h.new_value === 'Inactive');
+      if (inactiveEvent) {
+        inactiveDate = new Date(inactiveEvent.date);
+      }
+    }
+    const mStr = inactiveDate.toLocaleString('default', { month: 'short' });
+    if (monthlyCounts[mStr] !== undefined) {
+      monthlyCounts[mStr]++;
+    }
+  });
+
+  const monthlyAttrition = Object.keys(monthlyCounts).map(month => ({
+    month,
+    rate: totalEmployees > 0 ? Number(((monthlyCounts[month] / totalEmployees) * 100).toFixed(1)) : 0
+  })).reverse();
+
+  // Dept & BU Attrition
+  const deptMap: Record<string, { total: number, inactive: number }> = {};
+  const buMap: Record<string, { total: number, inactive: number }> = {};
+
+  employees.forEach(emp => {
+    const dept = emp.department || 'Unknown';
+    const bu = emp.business_unit || 'Unknown';
+    
+    if (!deptMap[dept]) deptMap[dept] = { total: 0, inactive: 0 };
+    if (!buMap[bu]) buMap[bu] = { total: 0, inactive: 0 };
+    
+    deptMap[dept].total++;
+    buMap[bu].total++;
+    
+    if (emp.employment_status === 'Inactive') {
+      deptMap[dept].inactive++;
+      buMap[bu].inactive++;
+    }
+  });
+
+  const deptAttrition = Object.keys(deptMap).map(dept => ({
+    department: dept,
+    rate: deptMap[dept].total > 0 ? Number(((deptMap[dept].inactive / deptMap[dept].total) * 100).toFixed(1)) : 0
+  }));
+
+  const buAttrition = Object.keys(buMap).map(bu => ({
+    bu,
+    rate: buMap[bu].total > 0 ? Number(((buMap[bu].inactive / buMap[bu].total) * 100).toFixed(1)) : 0
+  }));
+
+  const resignationImpact = inactive.length;
+  const replacementRequirement = positions.filter(p => p.status === 'V' || p.status === 'RoR').length;
+  const costImpact = inactive.reduce((sum, e) => sum + (e.ctc_annual || 0), 0);
+
+  res.json({
+    attritionRate,
+    monthlyAttrition,
+    deptAttrition,
+    buAttrition,
+    resignationImpact,
+    replacementRequirement,
+    costImpact
+  });
+});
+
+app.get('/api/analytics/forecasting', (req, res) => {
+  const employees = getEmployees();
+  const positions = getPositions();
+  const offers = getOffers();
+  const reqs = getJobRequisitions();
+  
+  const budgetHC = positions.length;
+  
+  const activeHC = employees.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  ).length;
+
+  const activeOffers = offers.filter(o => !['Offer Declined', 'Offer Expired', 'Rejected'].includes(o.status));
+  
+  const offeredHC = positions.filter(p => {
+    const hasActive = employees.some(e => e.position_id === p.id && (
+      e.employment_status === 'Active' || 
+      e.employment_status === 'Under Notice Period' ||
+      e.employment_status === 'Resigned on Roll' ||
+      e.employment_status === 'Replacement Joined'
+    ));
+    if (hasActive) return false;
+    const hasOffer = employees.some(e => e.position_id === p.id && e.employment_status === 'Offered Yet to Join') ||
+                     activeOffers.some(o => o.position_id === p.id);
+    return hasOffer;
+  }).length;
+
+  const expectedJoiningHC = employees.filter(e => e.employment_status === 'Offered Yet to Join').length +
+                            activeOffers.filter(o => o.status === 'Offer Accepted').length;
+
+  const vacancyHC = budgetHC - activeHC - offeredHC; // Ensures exact mathematical consistency: budgetHC = activeHC + offeredHC + vacancyHC
+  
+  const forecastedHC = activeHC + expectedJoiningHC;
+  
+  const budgetCTC = positions.reduce((sum, p) => sum + (p.budgeted_ctc || 0), 0);
+  const currentPayroll = employees.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  ).reduce((sum, e) => sum + (e.ctc_annual || 0), 0);
+  
+  const offeredCTC = activeOffers.reduce((sum, o) => sum + (o.offered_ctc || 0), 0);
+  
+  const futurePayrollCost = currentPayroll + offeredCTC;
+  const futureBudgetUtilization = budgetCTC > 0 ? (futurePayrollCost / budgetCTC) * 100 : 0;
+  const expectedSavings = budgetCTC - futurePayrollCost;
+
+  const avgHiringSpeed = 5;
+  const expectedClosureMonths = vacancyHC > 0 ? (vacancyHC / avgHiringSpeed).toFixed(1) : 0;
+
+  res.json({
+    budgetHC,
+    activeHC,
+    offeredHC,
+    vacancyHC,
+    expectedJoiningHC,
+    forecastedHC,
+    futureBudgetUtilization,
+    futurePayrollCost,
+    expectedSavings,
+    hiringRequirementForecast: vacancyHC,
+    forecastCompletionDates: {
+      vacancies: vacancyHC,
+      avgHiringSpeed,
+      expectedClosureMonths
+    }
+  });
 });
 
 app.listen(port, () => {

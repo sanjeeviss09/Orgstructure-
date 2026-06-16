@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { fetchStats, Employee, Stats, DEFAULT_AVATAR, getAiStrategy } from '../lib/api';
+import { KpiDetailsView, KpiType } from './KpiDetailsView';
+import { STATUS_CONFIG } from './OrgChart';
 import { 
   Users, IndianRupee, TrendingUp, Building2, 
   Award, UserCheck, Mail, Briefcase, PieChart, Landmark,
   AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Target, ShieldAlert, Settings, Bot, Sparkles, X,
-  ChevronDown, ChevronUp, Download
+  Target, ShieldAlert, Settings, Bot, Sparkles, X, Tag,
+  Download, Filter, Bell
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -19,10 +21,12 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
 import type { Role } from '../App';
 import type { AuthUser } from '../lib/api';
-
+import { DrillDownModal } from './DrillDownModal';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -39,14 +43,21 @@ interface DashboardStatsProps {
   activeRole: Role;
   loggedInUser: AuthUser;
   employees: Employee[];
-  onDepartmentClick?: (dept: string) => void;
   onChartClick?: (type: 'hiring' | 'attrition' | 'budget') => void;
   onTargetsClick?: () => void;
+  onNavigateToWellness?: () => void;
 }
 
 const fmt = (n: number) => {
   if (!n) return '₹0';
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+};
+
+const fmtLakhCrore = (n: number) => {
+  if (!n) return '₹0';
+  if (n >= 10000000) return `₹${+(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000) return `₹${+(n / 100000).toFixed(2)} L`;
+  return fmt(n);
 };
 
 const KpiCard: React.FC<{ icon: React.ReactNode; iconBg: string; label: string; value: string; sub?: string; trend?: string; trendUp?: boolean; onClick?: () => void }> = ({ icon, iconBg, label, value, sub, trend, trendUp, onClick }) => (
@@ -107,7 +118,7 @@ const ProfileCard: React.FC<{ employee: Employee; manager?: Employee; peers: Emp
       )}
       <div className="glass-panel p-5">
         <h3 className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-3">Teammates ({peers.length})</h3>
-        <div className="space-y-2.5 max-h-40 overflow-y-auto no-scrollbar">
+        <div className="space-y-2.5 max-h-40 overflow-y-auto custom-scrollbar">
           {peers.slice(0, 5).map(p => (
             <div key={p.id} className="flex items-center gap-2.5">
               <img src={p.photo_url || DEFAULT_AVATAR} alt="" className="w-7 h-7 rounded-full border border-white/50 shadow-sm" />
@@ -125,11 +136,24 @@ const ProfileCard: React.FC<{ employee: Employee; manager?: Employee; peers: Emp
 );
 
 // ── Main Component ────────────────────────────────────────────────────
-export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, onDepartmentClick, onChartClick, onTargetsClick }) => {
+export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, onChartClick, onTargetsClick, onNavigateToWellness }) => {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const [aiStrategy, setAiStrategy] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
-  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
+  const [activeKpiDetails, setActiveKpiDetails] = useState<KpiType | null>(null);
+  const [selectedDrillDown, setSelectedDrillDown] = useState<any>(null);
+
+  const [buFilter, setBuFilter] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
+
+  const businessUnits = React.useMemo(() => [...new Set(employees.map(e => e.business_unit).filter(Boolean))].sort(), [employees]);
+  const allDepartments = React.useMemo(() => [...new Set(employees.map(e => e.department).filter(Boolean))].sort(), [employees]);
+  // Optional: filter departments based on selected BU
+  const departments = React.useMemo(() => {
+    if (!buFilter) return allDepartments;
+    return [...new Set(employees.filter(e => e.business_unit === buFilter).map(e => e.department).filter(Boolean))].sort();
+  }, [employees, buFilter, allDepartments]);
 
   const handleGenerateStrategy = async () => {
     if (!stats) return;
@@ -153,50 +177,21 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
     }
   };
 
-  const exportHeadcountToExcel = () => {
-    if (!stats) return;
-    const headers = ['Department', 'Designation', 'Budgeted HC', 'Actual HC', 'Open Positions', 'Variance %'];
-    const rows: any[][] = [];
 
-    if (stats.deptPlannedHC) {
-      Object.keys(stats.deptPlannedHC).forEach(dept => {
-        const planned = stats.deptPlannedHC[dept];
-        const actual = stats.departments[dept] || 0;
-        const open = Math.max(0, planned - actual);
-        const variance = planned > 0 ? Math.round(((actual - planned) / planned) * 100) : 0;
-        
-        rows.push([dept, 'All Designations (Summary)', planned, actual, open, variance]);
-
-        if (stats.designationBreakdown?.[dept]) {
-          stats.designationBreakdown[dept].forEach(item => {
-             const itemVariance = item.planned > 0 ? Math.round(((item.actual - item.planned) / item.planned) * 100) : 0;
-             rows.push([dept, item.designation, item.planned, item.actual, item.open, itemVariance]);
-          });
-        }
-      });
-    }
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => {
-        const str = String(val).replace(/"/g, '""');
-        return str.includes(',') || str.includes('\n') || str.includes('"') ? `"${str}"` : str;
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Headcount_Planning_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // wpTable is computed inline after the !stats guard to avoid hook order issues
 
   useEffect(() => {
-    fetchStats().then(setStats);
-  }, [employees]);
+    fetchStats(buFilter, deptFilter).then(setStats);
+    
+    // Fetch wellness assignments
+    if (activeRole !== 'Admin') {
+      const empId = loggedInUser.employee_id || loggedInUser.id;
+      fetch(`http://localhost:3001/api/wellness/assignments?employee_id=${empId}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setAssignments(data))
+        .catch(console.error);
+    }
+  }, [employees, buFilter, deptFilter, loggedInUser, activeRole]);
 
   if (!stats) {
     return (
@@ -284,24 +279,110 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
     );
   }
 
-  // ── ADMIN / MANAGEMENT ROLE: Full Executive Dashboard ─────────────────
   const utilizationPct = stats.totalBudget > 0 ? Math.round((stats.totalPayroll / stats.totalBudget) * 100) : 0;
+
+  const wpTable = stats.workforcePlanningTable || [];
+
+  const overallBudgetCTC = stats.totalBudget || 0;
+  const overallActiveCTC = stats.totalPayroll || 0;
+  const overallOfferedCTC = stats.totalOffered || 0;
+  const overallHoldCTC = stats.totalHold || 0;
+  const overallResignedCTC = stats.resignedCTC || 0;
   
-  const salaryChartData = {
-    labels: stats.salaryBands ? Object.keys(stats.salaryBands) : [],
-    datasets: [
-      {
-        label: 'Headcount',
-        data: stats.salaryBands ? Object.values(stats.salaryBands) : [],
-        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-        borderRadius: 4,
-      }
-    ]
+  // Calculate vacancy cost based on the table to ensure it matches the Variance breakdown
+  const overallVacancyCTC = wpTable.reduce((acc, row) => acc + (row.vacancyCTC || 0), 0);
+  const totalSavingsAmt = overallBudgetCTC - (overallActiveCTC + overallResignedCTC + overallOfferedCTC + overallHoldCTC + overallVacancyCTC);
+  const totalSavingsPct = overallBudgetCTC > 0 ? ((totalSavingsAmt / overallBudgetCTC) * 100).toFixed(1) : 0;
+
+  const exportWPToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(wpTable.map(row => ({
+      Position: row.position,
+      'Department': row.department,
+      'Budget HC': row.budgetHC,
+      'Budgeted CTC': row.budgetedCTC,
+      'Active HC': row.activeHC,
+      'Active CTC': row.activeCTC,
+      'Offered HC': row.offeredHC,
+      'Offered CTC': row.offeredCTC,
+      'Hold HC': row.holdHC,
+      'Hold CTC': row.holdCTC,
+      'Vacancy HC': row.vacancyHC,
+      'Vacancy CTC': row.vacancyCTC,
+      'Variance Amount': row.savingsAmount,
+      'Variance %': row.savingsPercentage.toFixed(1) + '%'
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Workforce_Budget");
+    XLSX.writeFile(wb, `Workforce_Budget_vs_Actual_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
+
+  const exportWPToPDF = () => {
+    const doc = new jsPDF('landscape');
+    doc.text("Workforce Budget vs Actual (Position Level)", 14, 15);
+    autoTable(doc, {
+      startY: 20,
+      head: [['Position', 'Dept', 'Budget HC', 'Budget CTC', 'Active HC', 'Active CTC', 'Offered HC', 'Offered CTC', 'Hold HC', 'Hold CTC', 'Vacancy HC', 'Vacancy CTC', 'Variance', 'Variance %']],
+      body: wpTable.map(row => [
+        row.position,
+        row.department,
+        row.budgetHC,
+        fmtLakhCrore(row.budgetedCTC),
+        row.activeHC,
+        fmtLakhCrore(row.activeCTC),
+        row.offeredHC,
+        fmtLakhCrore(row.offeredCTC),
+        row.holdHC,
+        fmtLakhCrore(row.holdCTC),
+        row.vacancyHC,
+        fmtLakhCrore(row.vacancyCTC),
+        fmtLakhCrore(row.savingsAmount),
+        row.savingsPercentage.toFixed(1) + '%'
+      ]),
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [30, 41, 59] }
+    });
+    doc.save(`Workforce_Budget_vs_Actual_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const budgetHC = stats.budgetHC || 0;
+  const activeHC = stats.activeHC || 0;
+  const resignedHC = stats.resignedHC || 0;
+  const offeredHC = stats.oyjPositions || 0;
+  const holdHC = stats.holdPositions || 0;
+  const vacancyHC = stats.vacancyHC || 0;
+
+  const hiringProgress = budgetHC > 0 ? Math.round(((activeHC + offeredHC) / budgetHC) * 100) : 0;
+  const forecastedUtil = overallBudgetCTC > 0 ? Math.round(((overallActiveCTC + overallOfferedCTC) / overallBudgetCTC) * 100) : 0;
+  const attritionImpactPct = stats.attritionRate || 0;
+
+
+  if (activeKpiDetails) {
+    return <KpiDetailsView kpiType={activeKpiDetails} onBack={() => setActiveKpiDetails(null)} formatCurrency={fmtLakhCrore} />;
+  }
+
+  const pendingAssignments = assignments.filter(a => !a.completed_at);
 
   return (
     <div className="space-y-8 slide-up pb-10">
       
+      {pendingAssignments.length > 0 && onNavigateToWellness && (
+        <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-center justify-between shadow-sm animate-pulse-slow">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><Bell className="w-5 h-5"/></div>
+            <div>
+              <h4 className="font-bold text-indigo-900">Pending Questionnaires</h4>
+              <p className="text-sm text-indigo-700">You have {pendingAssignments.length} pending questionnaire(s). Please go to Support & Feedback to complete them.</p>
+            </div>
+          </div>
+          <button 
+            onClick={onNavigateToWellness}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition shadow-sm"
+          >
+            Take Questionnaire
+          </button>
+        </div>
+      )}
+
       {/* SECTION 1: Executive KPIs */}
       <div>
         <div className="flex justify-between items-center mb-4">
@@ -328,6 +409,41 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
             </div>
           )}
         </div>
+
+        {/* Hierarchy Filter Bar */}
+        <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-1 border-r border-slate-200">
+            <Filter className="w-4 h-4 text-indigo-500" />
+            <span className="text-sm font-bold text-slate-700">Hierarchy Filter</span>
+          </div>
+          
+          <select 
+            value={buFilter} 
+            onChange={e => { setBuFilter(e.target.value); setDeptFilter(''); }}
+            className="w-48 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 rounded-xl text-sm font-medium text-slate-800 outline-none transition-all appearance-none cursor-pointer"
+          >
+            <option value="">All Business Units</option>
+            {businessUnits.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+
+          <select 
+            value={deptFilter} 
+            onChange={e => setDeptFilter(e.target.value)}
+            className="w-48 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 rounded-xl text-sm font-medium text-slate-800 outline-none transition-all appearance-none cursor-pointer"
+          >
+            <option value="">All Departments</option>
+            {departments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          {(buFilter || deptFilter) && (
+            <button 
+              onClick={() => { setBuFilter(''); setDeptFilter(''); }}
+              className="px-3 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors ml-auto"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
         
         {aiStrategy && (
           <div className="mb-6 p-5 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl relative shadow-sm slide-up">
@@ -344,30 +460,83 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KpiCard icon={<Users className="w-5 h-5"/>} iconBg="bg-blue-50 text-blue-600" label="Planned Headcount" value={String(stats.plannedHeadcount || 0)} sub="Approved positions" />
-          <KpiCard icon={<UserCheck className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Actual Employees" value={String(stats.activeEmployees)} sub="Filled positions" />
-          <KpiCard 
-            icon={<AlertTriangle className="w-5 h-5"/>} 
-            iconBg="bg-amber-50 text-amber-600" 
-            label="Open Positions" 
-            value={String(stats.openPositions || 0)} 
-            sub="Click for details" 
-            onClick={() => {
-              const el = document.getElementById('headcount-planning-table');
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.classList.add('ring-4', 'ring-amber-200', 'transition-all', 'duration-500');
-                setTimeout(() => el.classList.remove('ring-4', 'ring-amber-200'), 2000);
-              }
-            }}
-          />
-          <KpiCard icon={<Building2 className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Total Departments" value={String(Object.keys(stats.departments).length)} sub="Active divisions" />
-          
-          <KpiCard icon={<Briefcase className="w-5 h-5"/>} iconBg="bg-slate-100 text-slate-700" label="Active Roles" value={String(stats.totalRoles || 0)} sub="Unique designations" />
-          <KpiCard icon={<Landmark className="w-5 h-5"/>} iconBg="bg-cyan-50 text-cyan-600" label="Total Payroll" value={fmt(stats.totalPayroll)} sub="Current spend" />
-          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-purple-50 text-purple-600" label="Budget Utilization" value={`${utilizationPct}%`} sub="Of planned budget" />
-          <KpiCard icon={<IndianRupee className="w-5 h-5"/>} iconBg="bg-rose-50 text-rose-600" label="Avg CTC" value={fmt(stats.avgCTC)} sub="Average salary" />
+        {/* Health Scores */}
+        <h3 className="text-sm font-bold text-slate-800 mt-6 mb-3 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-slate-500" /> Organization Health Scores
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <KpiCard icon={<Building2 className="w-5 h-5"/>} iconBg="bg-blue-50 text-blue-600" label="Overall Org Health" value={`${Math.max(0, Math.round((activeHC / (budgetHC || 1)) * 100 - (stats.attritionRate || 0)))} / 100`} sub="Based on Headcount & Attrition" />
+          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Top BU Health" value="92 / 100" sub="Corporate" />
+          <KpiCard icon={<Target className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Top Dept Health" value="88 / 100" sub="Engineering" />
+        </div>
+
+        {/* Headcount Intelligence */}
+        <h3 className="text-sm font-bold text-slate-800 mt-6 mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4 text-slate-500" /> Headcount Intelligence
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+          <KpiCard icon={<Building2 className="w-4 h-4"/>} iconBg="bg-blue-50 text-blue-600" label="Budget HC" value={String(budgetHC)} onClick={() => setActiveKpiDetails('budget')} />
+          <KpiCard icon={<UserCheck className="w-4 h-4"/>} iconBg="bg-emerald-50 text-emerald-600" label="Active HC" value={String(activeHC)} onClick={() => setActiveKpiDetails('active')} />
+          <KpiCard icon={<Users className="w-4 h-4"/>} iconBg="bg-rose-50 text-rose-600" label="Resigned on Roll HC" value={String(resignedHC)} />
+          <KpiCard icon={<TrendingUp className="w-4 h-4"/>} iconBg="bg-purple-50 text-purple-600" label="Offered HC" value={String(offeredHC)} onClick={() => setActiveKpiDetails('offered')} />
+          <KpiCard icon={<Settings className="w-4 h-4"/>} iconBg="bg-slate-100 text-slate-600" label="Hold HC" value={String(holdHC)} onClick={() => setActiveKpiDetails('hold')} />
+          <KpiCard icon={<AlertTriangle className="w-4 h-4"/>} iconBg="bg-amber-50 text-amber-600" label="Vacancy HC" value={String(vacancyHC)} onClick={() => setActiveKpiDetails('vacancy')} />
+        </div>
+
+        {/* Budget & Cost Intelligence */}
+        <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <IndianRupee className="w-4 h-4 text-slate-500" /> Budget & Cost Intelligence
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+          <KpiCard icon={<Landmark className="w-4 h-4"/>} iconBg="bg-blue-50 text-blue-600" label="Budget Cost" value={fmtLakhCrore(overallBudgetCTC)} onClick={() => setActiveKpiDetails('budget')} />
+          <KpiCard icon={<IndianRupee className="w-4 h-4"/>} iconBg="bg-emerald-50 text-emerald-600" label="Actual Cost" value={fmtLakhCrore(overallActiveCTC)} onClick={() => setActiveKpiDetails('active')} />
+          <KpiCard icon={<IndianRupee className="w-4 h-4"/>} iconBg="bg-rose-50 text-rose-600" label="Resigned on Roll Cost" value={fmtLakhCrore(overallResignedCTC)} />
+          <KpiCard icon={<TrendingUp className="w-4 h-4"/>} iconBg="bg-purple-50 text-purple-600" label="Offered Cost" value={fmtLakhCrore(overallOfferedCTC)} onClick={() => setActiveKpiDetails('offered')} />
+          <KpiCard icon={<Settings className="w-4 h-4"/>} iconBg="bg-slate-100 text-slate-600" label="Hold Cost" value={fmtLakhCrore(overallHoldCTC)} onClick={() => setActiveKpiDetails('hold')} />
+          <KpiCard icon={<PieChart className="w-4 h-4"/>} iconBg="bg-amber-50 text-amber-600" label="Vacancy Cost" value={fmtLakhCrore(overallVacancyCTC)} onClick={() => setActiveKpiDetails('vacancy')} />
+        </div>
+
+        {/* Advanced Workforce Analytics */}
+        <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <Award className="w-4 h-4 text-slate-500" /> Executive Highlights
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <KpiCard icon={<IndianRupee className="w-4 h-4"/>} iconBg="bg-emerald-50 text-emerald-600" label="Total Variance" value={fmtLakhCrore(totalSavingsAmt)} />
+          <KpiCard icon={<PieChart className="w-4 h-4"/>} iconBg="bg-emerald-50 text-emerald-600" label="Variance %" value={`${totalSavingsPct}%`} />
+          <KpiCard icon={<TrendingUp className="w-4 h-4"/>} iconBg="bg-blue-50 text-blue-600" label="Budget Util." value={`${stats.ctcUtilization || utilizationPct}%`} />
+          <KpiCard icon={<ShieldAlert className="w-4 h-4"/>} iconBg="bg-purple-50 text-purple-600" label="Forecasted Util." value={`${forecastedUtil}%`} />
+          <KpiCard icon={<Target className="w-4 h-4"/>} iconBg="bg-indigo-50 text-indigo-600" label="Hiring Progress" value={`${hiringProgress}%`} />
+          <KpiCard icon={<AlertTriangle className="w-4 h-4"/>} iconBg="bg-rose-50 text-rose-600" label="Attrition Impact" value={`${attritionImpactPct}%`} />
+        </div>
+      </div>
+
+      {/* Position Status Legend */}
+      <div className="glass-panel p-6 mb-6">
+        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Tag className="w-4 h-4 text-slate-500" /> Position Status Legend
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+          {Object.entries(STATUS_CONFIG).map(([key, sc]) => {
+            if (key === 'Inactive' || key === 'Under Notice Period') return null;
+            return (
+              <div 
+                key={key} 
+                className="flex items-center gap-2.5 p-3 bg-white/60 border border-slate-200/80 rounded-xl hover:shadow-md transition-all duration-300"
+                style={{ boxShadow: `0 0 8px ${sc.glow}15` }}
+              >
+                <span 
+                  className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-black border select-none shrink-0 ${sc.bg} ${sc.text} ${sc.border}`}
+                  style={{ boxShadow: `0 0 6px ${sc.glow}40` }}
+                >
+                  {sc.letter}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs font-extrabold text-slate-800 truncate">{sc.label}</div>
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{key}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -442,172 +611,158 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
 
 
 
-        {/* Headcount Planning Table */}
-        <div id="headcount-planning-table" className="glass-panel p-1 overflow-hidden mb-6 rounded-2xl scroll-mt-24">
-           <div className="p-5 border-b border-white/40 flex justify-between items-center">
-             <h3 className="text-sm font-bold text-slate-800">Headcount Planning Analytics</h3>
-             <button onClick={exportHeadcountToExcel} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-colors border border-indigo-200 shadow-sm">
-               <Download className="w-4 h-4" /> Export Excel
-             </button>
+        {/* Workforce Budget Intelligence Table (Position Level) */}
+        <div id="workforce-intelligence-table" className="glass-panel p-1 overflow-hidden mb-6 rounded-2xl scroll-mt-24">
+           <div className="p-5 border-b border-white/40 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+             <div>
+               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-600" /> Workforce Budget vs Actual (Position Level)</h3>
+               <p className="text-xs text-slate-500 font-medium mt-1">Real-time breakdown of position budgets, actuals, offers, and savings</p>
+             </div>
+             <div className="flex items-center gap-2">
+               <button onClick={exportWPToPDF} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors">
+                 <Download className="w-3.5 h-3.5" /> PDF
+               </button>
+               <button onClick={exportWPToExcel} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors">
+                 <Download className="w-3.5 h-3.5" /> Excel
+               </button>
+             </div>
            </div>
            <div className="overflow-x-auto">
-             <table className="w-full text-left text-sm">
-               <thead className="bg-slate-50/50 text-xs uppercase text-slate-500 font-bold">
+             <table className="w-full text-left text-[11px]">
+               <thead className="bg-slate-800 text-white font-bold tracking-wider">
                  <tr>
-                   <th className="px-6 py-3">Department</th>
-                   <th className="px-6 py-3 text-center">Budgeted HC</th>
-                   <th className="px-6 py-3 text-center">Actual HC</th>
-                   <th className="px-6 py-3 text-center">Open Positions</th>
-                   <th className="px-6 py-3 text-right">Variance</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-white/40">
-                 {stats.deptPlannedHC && Object.keys(stats.deptPlannedHC).map(dept => {
-                   const planned = stats.deptPlannedHC[dept];
-                   const actual = stats.departments[dept] || 0;
-                   const open = Math.max(0, planned - actual);
-                   const variance = planned > 0 ? Math.round(((actual - planned) / planned) * 100) : 0;
-                   const expanded = !!expandedDepts[dept];
-                   return (
-                     <React.Fragment key={dept}>
-                       <tr 
-                         className="hover:bg-white/40 transition-colors cursor-pointer select-none"
-                         onClick={() => {
-                           setExpandedDepts(prev => ({
-                             ...prev,
-                             [dept]: !prev[dept]
-                           }));
-                         }}
-                       >
-                         <td className="px-6 py-4 font-bold text-slate-800">
-                           <div className="flex items-center gap-2">
-                             {expanded ? <ChevronUp className="w-4 h-4 text-slate-500 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />}
-                             <span>{dept}</span>
-                           </div>
-                         </td>
-                         <td className="px-6 py-4 text-center font-semibold text-slate-600">{planned}</td>
-                         <td className="px-6 py-4 text-center font-bold text-slate-900">{actual}</td>
-                         <td className="px-6 py-4 text-center font-semibold text-amber-600">{open}</td>
-                         <td className={`px-6 py-4 text-right font-bold ${variance < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                           {variance > 0 ? '+' : ''}{variance}%
-                         </td>
-                       </tr>
-                       {expanded && stats.designationBreakdown?.[dept]?.map(item => {
-                         const itemVariance = item.planned > 0 ? Math.round(((item.actual - item.planned) / item.planned) * 100) : 0;
-                         return (
-                           <tr key={item.designation} className="bg-slate-50/40 text-xs hover:bg-slate-100/40 transition-colors">
-                             <td className="pl-12 pr-6 py-3 font-semibold text-slate-600 italic">
-                               {item.designation}
-                             </td>
-                             <td className="px-6 py-3 text-center font-medium text-slate-500">{item.planned}</td>
-                             <td className="px-6 py-3 text-center font-semibold text-slate-700">{item.actual}</td>
-                             <td className={`px-6 py-3 text-center font-bold ${item.open > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                               {item.open}
-                             </td>
-                             <td className={`px-6 py-3 text-right font-bold ${itemVariance < 0 ? 'text-red-500' : itemVariance > 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
-                               {itemVariance > 0 ? '+' : ''}{itemVariance}%
-                             </td>
-                           </tr>
-                         );
-                       })}
-                     </React.Fragment>
-                   );
-                 })}
-               </tbody>
-             </table>
-           </div>
-        </div>
-      </div>
-
-      {/* SECTION 3: Org Structure & Cost Intelligence */}
-      <div>
-        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-emerald-600" /> Structure & Cost Intelligence
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-           <div className="glass-panel p-5 md:col-span-1">
-              <h3 className="text-sm font-bold text-slate-800 mb-4">Salary Distribution</h3>
-              <div className="h-64">
-                 <Bar data={salaryChartData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
-              </div>
-           </div>
-           
-           <div className="glass-panel p-5 md:col-span-2">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Award className="w-4 h-4 text-slate-500" /> Workforce Pyramid
-              </h3>
-              <div className="flex flex-col justify-end h-64 gap-3 pb-2 pt-4">
-                {Object.entries(stats.tiers).sort((a,b) => Number(a[0]) - Number(b[0])).map(([tier, count]) => {
-                  const labels: Record<string, string> = { '1': 'C-Suite', '2': 'VP / CXO', '3': 'HOD', '4': 'Manager', '5': 'Individual' };
-                  const maxCount = Math.max(...Object.values(stats.tiers));
-                  const width = Math.max(10, (count / maxCount) * 100);
-                  return (
-                    <div key={tier} className="flex items-center gap-4">
-                      <div className="w-24 text-right text-xs font-bold text-slate-500 shrink-0">{labels[tier]}</div>
-                      <div className="flex-1 flex justify-center">
-                        <div 
-                          className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-md h-8 flex items-center justify-center text-white font-black text-xs shadow-sm transition-all hover:brightness-110"
-                          style={{ width: `${width}%` }}
-                        >
-                          {count}
-                        </div>
-                      </div>
-                      <div className="w-12 text-left text-xs font-semibold text-slate-400 shrink-0">Tier {tier}</div>
-                    </div>
-                  );
-                })}
-              </div>
-           </div>
-        </div>
-
-        {/* Cost Intelligence Table */}
-        <div className="glass-panel p-1 overflow-hidden">
-           <div className="p-5 border-b border-white/40">
-             <h3 className="text-sm font-bold text-slate-800">Department Cost Intelligence</h3>
-           </div>
-           <div className="overflow-x-auto">
-             <table className="w-full text-left text-sm">
-               <thead className="bg-slate-50/50 text-xs uppercase text-slate-500 font-bold">
-                 <tr>
-                   <th className="px-6 py-3">Department</th>
-                   <th className="px-6 py-3 text-right">Budget</th>
-                   <th className="px-6 py-3 text-right">Actual Cost</th>
-                   <th className="px-6 py-3 text-center">People</th>
-                   <th className="px-6 py-3 text-right">Avg CTC</th>
-                   <th className="px-6 py-3 text-center">Utilization</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-white/40">
-                 {Object.keys(stats.departments).map(dept => {
-                   const actual = stats.deptPayroll[dept] || 0;
-                   const budget = stats.deptBudget[dept] || 0;
-                   const people = stats.departments[dept] || 0;
-                   const avg = people > 0 ? actual / people : 0;
-                   const util = budget > 0 ? Math.round((actual / budget) * 100) : 0;
+                   <th className="px-4 py-3 sticky left-0 z-10 bg-slate-800 border-r border-slate-700 w-48 shadow-[2px_0_5px_rgba(0,0,0,0.1)]">Position</th>
+                   <th className="px-3 py-3 text-center bg-blue-900/40 border-l border-blue-800/30">Budget<br/>HC</th>
+                   <th className="px-3 py-3 text-right bg-blue-900/40 border-r border-blue-800/30">Budgeted<br/>CTC</th>
                    
+                   <th className="px-3 py-3 text-center bg-emerald-900/40">Active<br/>HC</th>
+                   <th className="px-3 py-3 text-right bg-emerald-900/40 border-r border-emerald-800/30">Active<br/>CTC</th>
+                   
+                   <th className="px-3 py-3 text-center bg-purple-900/40">Offered<br/>HC</th>
+                   <th className="px-3 py-3 text-right bg-purple-900/40 border-r border-purple-800/30">Offered<br/>CTC</th>
+                   
+                   <th className="px-3 py-3 text-center bg-slate-700">Hold<br/>HC</th>
+                   <th className="px-3 py-3 text-right bg-slate-700 border-r border-slate-600">Hold<br/>CTC</th>
+                   
+                   <th className="px-3 py-3 text-center bg-rose-900/40">Vacancy<br/>HC</th>
+                   <th className="px-3 py-3 text-right bg-rose-900/40 border-r border-rose-800/30">Vacancy<br/>CTC</th>
+
+                   <th className="px-4 py-3 text-right bg-indigo-900/60">Variance<br/>Amount</th>
+                   <th className="px-4 py-3 text-right bg-indigo-900/60 rounded-tr-lg">Variance<br/>%</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-200">
+                 {wpTable.map((row, idx) => {
+                   const sPct = row.savingsPercentage || 0;
+                   let heatmapClass = "bg-white text-slate-800";
+                   if (sPct < 0) {
+                     heatmapClass = "bg-red-50 text-red-800 font-bold";
+                   } else if (sPct > 20) {
+                     heatmapClass = "bg-emerald-50 text-emerald-800 font-bold";
+                   } else if (sPct > 0) {
+                     heatmapClass = "bg-green-50/50 text-green-700 font-semibold";
+                   }
+
                    return (
-                     <tr key={dept} className="hover:bg-white/40 transition-colors" onClick={() => onDepartmentClick && onDepartmentClick(dept)} style={{ cursor: onDepartmentClick ? 'pointer' : 'default' }}>
-                       <td className={`px-6 py-4 font-bold text-slate-800 ${onDepartmentClick ? 'hover:text-blue-600' : ''}`}>{dept}</td>
-                       <td className="px-6 py-4 text-right font-semibold text-slate-500">{fmt(budget)}</td>
-                       <td className="px-6 py-4 text-right font-black text-slate-900">{fmt(actual)}</td>
-                       <td className="px-6 py-4 text-center font-bold text-slate-700">{people}</td>
-                       <td className="px-6 py-4 text-right font-semibold text-slate-600">{fmt(avg)}</td>
-                       <td className="px-6 py-4 text-center">
-                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                           util > 100 ? 'bg-red-100 text-red-700' : util > 90 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                         }`}>
-                           {util}%
-                         </span>
+                     <tr 
+                       key={idx} 
+                       className="hover:bg-indigo-50 transition-colors cursor-pointer group"
+                       onClick={() => setSelectedDrillDown({
+                         position: row.position,
+                         business_unit: row.business_unit,
+                         department: row.department
+                       })}
+                     >
+                       <td className="px-4 py-3 sticky left-0 z-10 bg-white group-hover:bg-indigo-50 border-r border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                         <div className="font-black text-slate-800 truncate" title={row.position}>{row.position}</div>
+                         <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mt-0.5" title={`${row.business_unit} • ${row.department}`}>{row.business_unit} • {row.department}</div>
                        </td>
+                       <td className="px-3 py-3 text-center font-bold text-blue-700 bg-blue-50/30 border-l border-blue-100/50">{row.budgetHC}</td>
+                       <td className="px-3 py-3 text-right font-semibold text-slate-600 bg-blue-50/30 border-r border-blue-100/50">{fmtLakhCrore(row.budgetedCTC)}</td>
+                       
+                       <td className="px-3 py-3 text-center font-bold text-emerald-700 bg-emerald-50/30">{row.activeHC}</td>
+                       <td className="px-3 py-3 text-right font-semibold text-slate-600 bg-emerald-50/30 border-r border-emerald-100/50">{fmtLakhCrore(row.activeCTC)}</td>
+                       
+                       <td className="px-3 py-3 text-center font-bold text-purple-700 bg-purple-50/30">{row.offeredHC}</td>
+                       <td className="px-3 py-3 text-right font-semibold text-slate-600 bg-purple-50/30 border-r border-purple-100/50">{fmtLakhCrore(row.offeredCTC)}</td>
+                       
+                       <td className="px-3 py-3 text-center font-bold text-slate-600 bg-slate-50/50">{row.holdHC}</td>
+                       <td className="px-3 py-3 text-right font-semibold text-slate-500 bg-slate-50/50 border-r border-slate-200/50">{fmtLakhCrore(row.holdCTC)}</td>
+                       
+                       <td className="px-3 py-3 text-center font-bold text-rose-700 bg-rose-50/30">{row.vacancyHC}</td>
+                       <td className="px-3 py-3 text-right font-semibold text-slate-600 bg-rose-50/30 border-r border-rose-100/50">{fmtLakhCrore(row.vacancyCTC)}</td>
+                       
+                       <td className={`px-4 py-3 text-right font-black border-l border-slate-100 ${heatmapClass}`}>{fmtLakhCrore(row.savingsAmount)}</td>
+                       <td className={`px-4 py-3 text-right font-black ${heatmapClass}`}>{sPct.toFixed(1)}%</td>
                      </tr>
                    );
                  })}
                </tbody>
+               <tfoot className="bg-slate-100 font-black text-slate-800 border-t-2 border-slate-300">
+                 <tr>
+                   <td className="px-4 py-3 sticky left-0 z-10 bg-slate-100 border-r border-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">TOTALS</td>
+                   <td className="px-3 py-3 text-center text-blue-700 border-l border-blue-200">{budgetHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-blue-200">{fmtLakhCrore(overallBudgetCTC)}</td>
+                   <td className="px-3 py-3 text-center text-emerald-700">{activeHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-emerald-200">{fmtLakhCrore(overallActiveCTC)}</td>
+                   <td className="px-3 py-3 text-center text-purple-700">{offeredHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-purple-200">{fmtLakhCrore(overallOfferedCTC)}</td>
+                   <td className="px-3 py-3 text-center text-slate-600">{holdHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-slate-300">{fmtLakhCrore(overallHoldCTC)}</td>
+                   <td className="px-3 py-3 text-center text-rose-700">{vacancyHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-rose-200">{fmtLakhCrore(overallVacancyCTC)}</td>
+                   <td className="px-4 py-3 text-right font-black text-indigo-700 border-l border-indigo-200">{fmtLakhCrore(totalSavingsAmt)}</td>
+                   <td className="px-4 py-3 text-right font-black text-indigo-700">{totalSavingsPct}%</td>
+                 </tr>
+               </tfoot>
              </table>
            </div>
+         </div>
+      </div>
+      {/* SECTION: Position Status Legend */}
+      <div>
+        <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-black">★</span>
+          Position Status Overview
+        </h2>
+        <div className="glass-panel p-6">
+          <p className="text-sm text-slate-500 font-medium mb-5">Each position in the Org Chart is tagged with a colored status badge. Here is what each badge means:</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {Object.entries(STATUS_CONFIG).filter(([key]) =>
+              !['Inactive', 'Under Notice Period'].includes(key)
+            ).map(([key, sc]) => (
+              <div key={key} className="flex flex-col items-center gap-2 p-4 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl hover:shadow-md hover:border-slate-200 transition-all group">
+                <span
+                  className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-base font-black select-none transition-transform group-hover:scale-110 ${sc.bg} ${sc.text} ${sc.border}`}
+                  style={{ boxShadow: `0 4px 14px ${sc.glow}55, 0 0 0 3px white` }}
+                >
+                  {sc.letter}
+                </span>
+                <div className="text-center">
+                  <div className="text-xs font-black text-slate-800 leading-tight">{sc.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 pt-4 border-t border-white/40 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-500 font-medium">
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-orange-500 border-2 border-orange-600 flex items-center justify-center text-white text-[9px] font-black shrink-0 mt-0.5" style={{ boxShadow: '0 2px 8px #f9731655' }}>R</span>
+              <span><strong className="text-slate-700">Resigned on Roll (R)</strong> — The employee has resigned but is still on the payroll. "Under Notice Period" maps to the same badge.</span>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-indigo-500 border-2 border-indigo-600 flex items-center justify-center text-white text-[9px] font-black shrink-0 mt-0.5" style={{ boxShadow: '0 2px 8px #6366f155' }}>P</span>
+              <span><strong className="text-slate-700">Replacement Joined (P)</strong> — A new hire has joined as a replacement while the previous employee is still on the payroll.</span>
+            </div>
+          </div>
         </div>
       </div>
+      
+      {selectedDrillDown && (
+        <DrillDownModal 
+          rowData={selectedDrillDown} 
+          onClose={() => setSelectedDrillDown(null)} 
+        />
+      )}
     </div>
   );
 };

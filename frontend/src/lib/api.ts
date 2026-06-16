@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://orgstructure.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cbd5e1'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
 
@@ -10,9 +10,24 @@ export interface EmployeeHistoryEvent {
   notes?: string;
 }
 
+export type PositionStatus = 'A' | 'V' | 'OYJ' | 'RoR' | 'RP' | 'H' | 'F' | 'M' | 'C' | 'T';
+
+export interface Position {
+  id: string; // e.g., P001
+  title: string; // e.g., Software Engineer
+  department: string;
+  business_unit: string;
+  sub_function?: string;
+  reporting_to_position_id: string | null;
+  status: PositionStatus;
+  merged_into_position_id?: string;
+  budgeted_ctc?: number;
+}
+
 export interface Employee {
   id: string;
   emp_id: string; // Manually assigned ID
+  position_id?: string;
   full_name: string;
   company_name: string;
   business_unit: string;
@@ -54,6 +69,8 @@ export interface Stats {
   activeEmployees: number;
   totalPayroll: number;
   totalBudget: number;
+  totalOffered: number;
+  totalHold: number;
   avgCTC: number;
   totalRoles?: number;
   departments: Record<string, number>;
@@ -61,7 +78,30 @@ export interface Stats {
   tiers: Record<number, number>;
   deptPayroll: Record<string, number>;
   deptBudget: Record<string, number>;
+  deptOffered: Record<string, number>;
+  deptHold: Record<string, number>;
   
+  // Executive KPIs
+  budgetPositions: number;
+  activePositions: number;
+  vacantPositions: number;
+  oyjPositions: number;
+  replacementPositions: number;
+  holdPositions: number;
+  frozenPositions: number;
+  
+  employeeCount: number;
+  budgetHC: number;
+  activeHC: number;
+  vacancyHC: number;
+  resignedHC: number;
+  
+  budgetCTC: number;
+  activeCTC: number;
+  vacancyCTC: number;
+  resignedCTC: number;
+  ctcUtilization: number;
+
   // Advanced Analytics
   plannedHeadcount: number;
   openPositions: number;
@@ -72,7 +112,8 @@ export interface Stats {
   hiringTrend: { month: string; actual: number; planned: number }[];
   attritionTrend: { month: string; rate: number }[];
   healthScore: number;
-  designationBreakdown?: Record<string, { designation: string; planned: number; actual: number; open: number }[]>;
+  designationBreakdown?: Record<string, { designation: string; planned: number; actual: number; open: number; budgeted_ctc?: number }[]>;
+  workforcePlanningTable: any[];
 }
 
 export interface DesignationTarget {
@@ -83,6 +124,7 @@ export interface DesignationTarget {
 
 export interface DeptTarget {
   department: string;
+  business_unit?: string;
   budgeted_hc: number;
   budget_allocated: number;
   target_attrition: number;
@@ -186,7 +228,7 @@ export const login = async (username: string, password: string): Promise<AuthUse
 };
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────
-export const fetchEmployees = async (): Promise<Employee[]> => {
+export const fetchEmployees = async (retries = 3): Promise<Employee[]> => {
   try {
     const res = await fetch(`${API_BASE}/api/employees?_=${Date.now()}`, {
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
@@ -208,10 +250,15 @@ export const fetchEmployees = async (): Promise<Employee[]> => {
       return {
         ...emp,
         employment_status: status,
-        join_date: emp.join_date || new Date().toISOString(),
+        join_date: emp.join_date || null,
       };
     });
   } catch (error: any) {
+    if (retries > 0) {
+      console.warn(`Backend fetch failed, retrying in 1s... (${retries} left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchEmployees(retries - 1);
+    }
     console.warn('Backend fetch failed:', error.message);
     return [];
   }
@@ -269,14 +316,49 @@ export const getAiStrategy = async (metrics: any): Promise<string> => {
   return data.strategy;
 };
 
-export const fetchStats = async (): Promise<Stats> => {
-  const [emps, targets] = await Promise.all([fetchEmployees(), fetchTargets()]);
-  // Compute stats locally since we don't have a backend /stats endpoint anymore
+export const fetchStats = async (buFilter?: string, deptFilter?: string): Promise<Stats> => {
+  const fetchOffersCall = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/recruitment/offers`);
+      if (res.ok) return await res.json();
+    } catch {}
+    return [];
+  };
+
+  let [emps, targets, positions, offers] = await Promise.all([fetchEmployees(), fetchTargets(), fetchPositions(), fetchOffersCall()]);
+
+  // Apply Hierarchy Filters
+  if (buFilter) {
+    emps = emps.filter(e => e.business_unit === buFilter);
+    positions = positions.filter(p => p.business_unit === buFilter);
+  }
+  if (deptFilter) {
+    emps = emps.filter(e => e.department === deptFilter);
+    positions = positions.filter(p => p.department === deptFilter);
+  }
+
+  // Compute stats locally
   const totalEmployees = emps.length;
-  const activeEmployees = emps.filter(e => e.employment_status === 'Active' || e.employment_status === 'Under Notice Period').length;
-  const totalPayroll = emps.filter(e => e.employment_status === 'Active' || e.employment_status === 'Under Notice Period').reduce((acc, curr) => acc + (Number(curr.ctc_annual) || 0), 0);
+  const activeEmployees = emps.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  ).length;
+  
+  const totalPayroll = emps.filter(e => 
+    e.employment_status === 'Active' || 
+    e.employment_status === 'Under Notice Period' ||
+    e.employment_status === 'Resigned on Roll' ||
+    e.employment_status === 'Replacement Joined'
+  ).reduce((acc, curr) => acc + (Number(curr.ctc_annual) || 0), 0);
+  
   const avgCTC = activeEmployees ? totalPayroll / activeEmployees : 0;
   
+  const budgetCTC = positions.reduce((sum, p) => sum + (Number(p.budgeted_ctc) || 0), 0);
+  const activeCTC = totalPayroll;
+  const ctcUtilization = budgetCTC > 0 ? Math.round((activeCTC / budgetCTC) * 100) : 0;
+
   const uniqueRoles = new Set(emps.map(e => e.designation?.trim()).filter(Boolean));
   const totalRoles = uniqueRoles.size;
   
@@ -285,6 +367,8 @@ export const fetchStats = async (): Promise<Stats> => {
   const tiers: Record<number, number> = {};
   const deptPayroll: Record<string, number> = {};
   const deptBudget: Record<string, number> = {};
+  const deptOffered: Record<string, number> = {};
+  const deptHold: Record<string, number> = {};
   const salaryBands: Record<string, number> = {
     '< 5L': 0,
     '5L - 10L': 0,
@@ -294,7 +378,10 @@ export const fetchStats = async (): Promise<Stats> => {
   };
 
   emps.forEach(e => {
-    const isActive = e.employment_status === 'Active' || e.employment_status === 'Under Notice Period';
+    const isActive = e.employment_status === 'Active' || 
+                     e.employment_status === 'Under Notice Period' ||
+                     e.employment_status === 'Resigned on Roll' ||
+                     e.employment_status === 'Replacement Joined';
     if (isActive) {
       departments[e.department] = (departments[e.department] || 0) + 1;
       businessUnits[e.business_unit] = (businessUnits[e.business_unit] || 0) + 1;
@@ -312,7 +399,7 @@ export const fetchStats = async (): Promise<Stats> => {
 
   // Apply actual targets
   const deptPlannedHC: Record<string, number> = {};
-  const designationBreakdown: Record<string, { designation: string; planned: number; actual: number; open: number }[]> = {};
+  const designationBreakdown: Record<string, { designation: string; planned: number; actual: number; open: number; budgeted_ctc?: number }[]> = {};
   let plannedHeadcount = 0;
   let totalBudget = 0;
   let openPositions = 0;
@@ -322,7 +409,10 @@ export const fetchStats = async (): Promise<Stats> => {
   const actualEmpsByDept: Record<string, number> = {};
   
   emps.forEach(e => {
-    const isActive = e.employment_status === 'Active' || e.employment_status === 'Under Notice Period';
+    const isActive = e.employment_status === 'Active' || 
+                     e.employment_status === 'Under Notice Period' ||
+                     e.employment_status === 'Resigned on Roll' ||
+                     e.employment_status === 'Replacement Joined';
     if (isActive) {
       const d = e.department?.trim() || 'General';
       const des = e.designation?.trim() || 'General';
@@ -332,130 +422,202 @@ export const fetchStats = async (): Promise<Stats> => {
     }
   });
 
-  targets.departments.forEach(t => {
-    const dept = t.department.trim();
-    designationBreakdown[dept] = [];
-    let deptHc = 0;
-    let deptCost = 0;
-    let deptOpen = 0;
-    const actualDeptTotal = actualEmpsByDept[dept] || 0;
+  // Use strict position budgets for totalBudget and deptBudget
+  totalBudget = 0;
+  Object.keys(deptBudget).forEach(k => delete deptBudget[k]);
+  positions.forEach(p => {
+    const b = Number(p.budgeted_ctc) || 0;
+    totalBudget += b;
+    deptBudget[p.department] = (deptBudget[p.department] || 0) + b;
+  });
+
+  // Build Workforce Planning Intelligence Table
+  const titleMap = new Map<string, any>();
+  let totalOffered = 0;
+  let totalHold = 0;
+
+  positions.forEach(p => {
+    // Find active employees linked to this position
+    const activeEmps = emps.filter(e => e.position_id === p.id && (
+      e.employment_status === 'Active' || 
+      e.employment_status === 'Replacement Joined'
+    ));
     
-    if (t.designations && t.designations.length > 0) {
-      let accountedActualInDesignations = 0;
-      const targetDesignationsProcessed = new Set<string>();
+    const resignedEmps = emps.filter(e => e.position_id === p.id && (
+      e.employment_status === 'Under Notice Period' ||
+      e.employment_status === 'Resigned on Roll'
+    ));
+    // Find offers linked to this position
+    const posOffers = offers.filter((o: any) => o.position_id === p.id && o.status !== 'Offer Declined' && o.status !== 'Offer Expired');
+    
+    const budgetedCTC = Number(p.budgeted_ctc) || 0;
+    const activeCTC = activeEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
+    const activeHC = activeEmps.length;
+    
+    const resignedCTC = resignedEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
+    const resignedHC = resignedEmps.length;
+    
+    let offeredCTC = 0;
+    let offeredHC = 0;
+    let holdCTC = 0;
+    let holdHC = 0;
 
-      t.designations.forEach(d => {
-        const desigName = d.designation.trim();
-        targetDesignationsProcessed.add(desigName);
-        const targetHc = Number(d.budgeted_hc) || 0;
-        const targetCost = Number(d.budget_allocated) || 0;
-        const actualDesig = actualEmpsByDeptDesig[dept]?.[desigName] || 0;
-        
-        const plannedDesig = Math.max(targetHc, actualDesig);
-        const openDesig = Math.max(0, targetHc - actualDesig);
+    // Check if there is an employee with status "Offered Yet to Join"
+    const oyjEmp = emps.find(e => e.position_id === p.id && e.employment_status === 'Offered Yet to Join');
+    if (oyjEmp) {
+      offeredHC = 1;
+      offeredCTC = Number(oyjEmp.ctc_annual) || 0;
+    }
 
-        designationBreakdown[dept].push({
-          designation: desigName,
-          planned: plannedDesig,
-          actual: actualDesig,
-          open: openDesig
-        });
-        
-        deptHc += plannedDesig;
-        deptCost += targetCost;
-        deptOpen += openDesig;
-        accountedActualInDesignations += actualDesig;
-      });
-      
-      // Keep actual employees in the department who weren't in the specific target designations
-      if (actualEmpsByDeptDesig[dept]) {
-        Object.keys(actualEmpsByDeptDesig[dept]).forEach(desigName => {
-          if (!targetDesignationsProcessed.has(desigName)) {
-            const actualDesig = actualEmpsByDeptDesig[dept][desigName];
-            designationBreakdown[dept].push({
-              designation: desigName,
-              planned: actualDesig,
-              actual: actualDesig,
-              open: 0
-            });
-            deptHc += actualDesig;
-            accountedActualInDesignations += actualDesig;
-          }
-        });
-      }
-    } else {
-      const targetHc = Number(t.budgeted_hc) || 0;
-      deptCost = Number(t.budget_allocated) || 0;
-      
-      if (targetHc === 0) {
-        deptHc = actualDeptTotal; // Default to actual if no target set
+    // Check if position status itself is Offered Yet to Join (OYJ)
+    if (!oyjEmp && p.status === 'OYJ') {
+      offeredHC = 1;
+      offeredCTC = budgetedCTC;
+    }
+    
+    posOffers.forEach((o: any) => {
+      if (o.status === 'Offer Declined' || o.status === 'Offer Expired' || o.status === 'Joined') return;
+
+      if (o.status === 'Pending Budget Exception' || o.status.startsWith('Pending')) {
+        holdCTC += Number(o.offered_ctc) || 0;
+        holdHC += 1;
       } else {
-        deptHc = Math.max(targetHc, actualDeptTotal);
-        deptOpen = Math.max(0, targetHc - actualDeptTotal);
+        if (offeredHC === 0) {
+          offeredCTC += Number(o.offered_ctc) || 0;
+          offeredHC += 1;
+        }
       }
+    });
 
-      if (actualEmpsByDeptDesig[dept]) {
-        Object.keys(actualEmpsByDeptDesig[dept]).forEach(desigName => {
-          const actualDesig = actualEmpsByDeptDesig[dept][desigName];
-          designationBreakdown[dept].push({
-            designation: desigName,
-            planned: actualDesig,
-            actual: actualDesig,
-            open: 0
-          });
-        });
-      }
-
-      if (deptOpen > 0) {
-        designationBreakdown[dept].push({
-          designation: "Vacant Position (Unspecified Role)",
-          planned: deptOpen,
-          actual: 0,
-          open: deptOpen
-        });
-      }
+    if (holdHC === 0 && p.status === 'H') {
+      holdHC = 1;
+      holdCTC = budgetedCTC;
     }
+
+    totalOffered += offeredCTC;
+    totalHold += holdCTC;
+
+    if (p.department) {
+      deptOffered[p.department] = (deptOffered[p.department] || 0) + offeredCTC;
+      deptHold[p.department] = (deptHold[p.department] || 0) + holdCTC;
+    }
+
+    const totalCommitted = activeCTC + resignedCTC + offeredCTC + holdCTC;
+    const availableBudget = budgetedCTC - totalCommitted;
     
-    deptPlannedHC[t.department] = deptHc;
-    deptBudget[t.department] = deptCost;
-    plannedHeadcount += deptHc;
-    totalBudget += deptCost;
-    openPositions += deptOpen;
+    let vacancyHC = 0;
+    let posVacancyCTC = 0;
+    
+    if (activeHC === 0 && resignedHC === 0 && offeredHC === 0 && holdHC === 0) {
+      vacancyHC = 1;
+      posVacancyCTC = Math.max(0, availableBudget);
+    }
+
+    const key = `${p.title.trim()}|${p.business_unit}|${p.department}`;
+    if (!titleMap.has(key)) {
+      titleMap.set(key, {
+        position: p.title.trim(),
+        grade: 'N/A',
+        business_unit: p.business_unit,
+        department: p.department,
+        budgetHC: 0, budgetedCTC: 0,
+        activeHC: 0, activeCTC: 0,
+        resignedHC: 0, resignedCTC: 0,
+        offeredHC: 0, offeredCTC: 0,
+        holdHC: 0, holdCTC: 0,
+        vacancyHC: 0, vacancyCTC: 0,
+        savingsAmount: 0
+      });
+    }
+    const row = titleMap.get(key);
+    row.budgetHC += 1;
+    row.budgetedCTC += budgetedCTC;
+    row.activeHC += activeHC;
+    row.activeCTC += activeCTC;
+    row.resignedHC += resignedHC;
+    row.resignedCTC += resignedCTC;
+    row.offeredHC += offeredHC;
+    row.offeredCTC += offeredCTC;
+    row.holdHC += holdHC;
+    row.holdCTC += holdCTC;
+    row.vacancyHC += vacancyHC;
+    row.vacancyCTC += posVacancyCTC;
+    row.savingsAmount += availableBudget;
   });
 
-  // Fallback for departments not in targets
-  Object.keys(actualEmpsByDept).forEach(dept => {
-    if (deptPlannedHC[dept] === undefined) {
-      const actual = actualEmpsByDept[dept];
-      deptPlannedHC[dept] = actual;
-      plannedHeadcount += actual;
-      deptBudget[dept] = deptPayroll[dept] || 0; // fallback budget to actual cost if undefined
-      
+  // Calculate department totals
+  const deptTotals: Record<string, { budget: number, active: number, offered: number, hold: number, rawVacancy: number }> = {};
+  for (const row of titleMap.values()) {
+    const d = row.department || '';
+    if (!deptTotals[d]) {
+      deptTotals[d] = { budget: 0, active: 0, offered: 0, hold: 0, rawVacancy: 0 };
+    }
+    deptTotals[d].budget += row.budgetedCTC;
+    deptTotals[d].active += row.activeCTC;
+    deptTotals[d].offered += row.offeredCTC;
+    deptTotals[d].hold += row.holdCTC;
+    deptTotals[d].rawVacancy += row.vacancyCTC;
+  }
+
+  const workforcePlanningTable = Array.from(titleMap.values()).map(row => {
+    const d = row.department || '';
+    const dt = deptTotals[d];
+    
+    // Department level available budget
+    const dAvailable = Math.max(0, dt.budget - dt.active - dt.offered - dt.hold);
+    
+    const rawVacancyCTC = row.vacancyCTC;
+    // Scale vacancy CTC so it doesn't exceed the department's available budget
+    const scaledVacancyCTC = Math.min(rawVacancyCTC, dt.rawVacancy > 0 ? Math.round(dAvailable * (rawVacancyCTC / dt.rawVacancy)) : 0);
+    
+    // The true Variance/Savings is what's left AFTER paying for the Vacancy CTC
+    const trueVariance = row.savingsAmount - scaledVacancyCTC;
+    const variancePercentage = row.budgetedCTC > 0 ? (trueVariance / row.budgetedCTC) * 100 : 0;
+    
+    return { ...row, vacancyCTC: scaledVacancyCTC, savingsAmount: trueVariance, savingsPercentage: variancePercentage };
+  });
+
+  let vacancyCTC = workforcePlanningTable.reduce((sum, row) => sum + (row.vacancyCTC || 0), 0);
+
+  const budgetHC = workforcePlanningTable.reduce((sum, row) => sum + (row.budgetHC || 0), 0);
+  const activeHC = workforcePlanningTable.reduce((sum, row) => sum + (row.activeHC || 0), 0);
+  const resignedHC = workforcePlanningTable.reduce((sum, row) => sum + (row.resignedHC || 0), 0);
+  const vacancyHC = workforcePlanningTable.reduce((sum, row) => sum + (row.vacancyHC || 0), 0);
+  const oyjPositions = workforcePlanningTable.reduce((sum, row) => sum + (row.offeredHC || 0), 0);
+  const holdPositions = workforcePlanningTable.reduce((sum, row) => sum + (row.holdHC || 0), 0);
+
+  const wpActiveCTC = workforcePlanningTable.reduce((sum, row) => sum + (row.activeCTC || 0), 0);
+  const wpResignedCTC = workforcePlanningTable.reduce((sum, row) => sum + (row.resignedCTC || 0), 0);
+  const wpBudgetCTC = workforcePlanningTable.reduce((sum, row) => sum + (row.budgetedCTC || 0), 0);
+
+  const budgetPositions = budgetHC;
+  const activePositions = activeHC;
+  const vacantPositions = vacancyHC;
+  const replacementPositions = positions.filter(p => p.status === 'RP').length;
+  const frozenPositions = positions.filter(p => p.status === 'F').length;
+
+  const employeeCount = totalEmployees;
+
+  // Populate designationBreakdown and deptPlannedHC from workforcePlanningTable
+  for (const row of workforcePlanningTable) {
+    const dept = row.department || 'General';
+    if (!designationBreakdown[dept]) {
       designationBreakdown[dept] = [];
-      if (actualEmpsByDeptDesig[dept]) {
-        Object.keys(actualEmpsByDeptDesig[dept]).forEach(desigName => {
-          const actualDesig = actualEmpsByDeptDesig[dept][desigName];
-          designationBreakdown[dept].push({
-            designation: desigName,
-            planned: actualDesig,
-            actual: actualDesig,
-            open: 0
-          });
-        });
-      }
     }
-  });
-
-  // Also fallback budget for departments that had target=0 and no designations
-  Object.keys(deptBudget).forEach(dept => {
-    if (deptBudget[dept] === 0 && deptPayroll[dept] > 0) {
-       deptBudget[dept] = deptPayroll[dept];
-       totalBudget += deptPayroll[dept];
-    }
-  });
+    designationBreakdown[dept].push({
+      designation: row.position,
+      planned: row.budgetHC,
+      actual: row.activeHC,
+      open: row.vacancyHC,
+      budgeted_ctc: row.budgetedCTC
+    });
+    deptPlannedHC[dept] = (deptPlannedHC[dept] || 0) + row.budgetHC;
+  }
 
   if (typeof targets.global_planned_headcount === 'number' && !isNaN(targets.global_planned_headcount) && targets.global_planned_headcount > 0) {
     plannedHeadcount = targets.global_planned_headcount;
+  } else {
+    plannedHeadcount = budgetHC;
   }
 
   if (typeof targets.global_open_positions === 'number' && !isNaN(targets.global_open_positions) && targets.global_open_positions > 0) {
@@ -463,15 +625,16 @@ export const fetchStats = async (): Promise<Stats> => {
     if (plannedHeadcount < activeEmployees + openPositions) {
       plannedHeadcount = activeEmployees + openPositions;
     }
+  } else {
+    openPositions = vacancyHC;
   }
 
   // Calculate Actual Hiring Velocity (Hires in last 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const hiringVelocity = emps.filter(e => e.join_date && new Date(e.join_date) >= thirtyDaysAgo).length;
 
-  // Calculate Actual Attrition Rate ((Inactive / Total) * 100)
   const inactiveEmployees = emps.filter(e => e.employment_status === 'Inactive').length;
-  const attritionRate = totalEmployees > 0 ? Number(((inactiveEmployees / totalEmployees) * 100).toFixed(1)) : 0;
+  const attritionRate = activeEmployees > 0 ? Number(((inactiveEmployees / activeEmployees) * 100).toFixed(1)) : 0;
 
   // Calculate Org Health Score (Starts at 100, penalize for high attrition and open positions)
   const attritionPenalty = (attritionRate / 5) * 10;
@@ -496,7 +659,6 @@ export const fetchStats = async (): Promise<Stats> => {
     }).length;
     totalHiresInTrend += hiresThisMonth;
   }
-
 
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -533,11 +695,53 @@ export const fetchStats = async (): Promise<Stats> => {
   }
 
   return {
-    totalEmployees, activeEmployees, totalPayroll, totalBudget, avgCTC, totalRoles,
-    departments, businessUnits, tiers, deptPayroll, deptBudget,
-    plannedHeadcount, openPositions, hiringVelocity, attritionRate,
-    deptPlannedHC, salaryBands, hiringTrend, attritionTrend, healthScore,
-    designationBreakdown
+    totalEmployees,
+    activeEmployees,
+    totalPayroll,
+    totalBudget,
+    totalOffered,
+    totalHold,
+    avgCTC,
+    totalRoles,
+    departments,
+    businessUnits,
+    tiers,
+    deptPayroll,
+    deptBudget,
+    deptOffered,
+    deptHold,
+    
+    // Executive KPIs
+    budgetPositions,
+    activePositions,
+    vacantPositions,
+    oyjPositions,
+    replacementPositions,
+    holdPositions,
+    frozenPositions,
+    employeeCount,
+    budgetHC,
+    activeHC,
+    vacancyHC,
+    resignedHC,
+    budgetCTC: wpBudgetCTC,
+    activeCTC: wpActiveCTC,
+    vacancyCTC,
+    resignedCTC: wpResignedCTC,
+    ctcUtilization,
+
+    // Advanced Analytics
+    plannedHeadcount,
+    openPositions,
+    hiringVelocity,
+    attritionRate,
+    deptPlannedHC,
+    salaryBands,
+    hiringTrend,
+    attritionTrend,
+    healthScore,
+    designationBreakdown,
+    workforcePlanningTable
   };
 };
 
@@ -745,6 +949,23 @@ export const loginIntern = async (internId: string, password: string): Promise<I
   });
   if (!res.ok) throw new Error('Invalid intern credentials');
   return res.json();
+};
+
+
+export const fetchPositions = async (retries = 3): Promise<Position[]> => {
+  try {
+    const res = await fetch(`${API_BASE}/api/positions?_=${Date.now()}`);
+    if (!res.ok) throw new Error('Failed to fetch positions');
+    return await res.json();
+  } catch (error: any) {
+    if (retries > 0) {
+      console.warn(`Backend fetch failed for positions, retrying in 1s... (${retries} left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchPositions(retries - 1);
+    }
+    console.warn('Backend fetch failed:', error.message);
+    return [];
+  }
 };
 
 export const fetchInterns = async (): Promise<Intern[]> => {

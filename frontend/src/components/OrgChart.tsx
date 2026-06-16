@@ -1,16 +1,63 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Employee, DEFAULT_AVATAR, fetchTargets, HRTargets } from '../lib/api';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Employee, Position, DEFAULT_AVATAR, fetchTargets, HRTargets } from '../lib/api';
 import type { Role } from '../App';
 import { X, Mail, Users, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Search, Building2, Tag, Filter, Download, Eye, EyeOff, FileSpreadsheet, GitBranch } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
+export interface PositionNode {
+  position: Position;
+  occupants: Employee[];
+}
+
+export const STATUS_CONFIG: Record<string, { letter: string; label: string; bg: string; text: string; border: string; glow: string }> = {
+  'Active':             { letter: 'Ⓐ', label: 'Active',              bg: 'bg-emerald-500',  text: 'text-white', border: 'border-emerald-600', glow: '#10b981' },
+  'Vacant Position':    { letter: 'Ⓥ', label: 'Vacant',              bg: 'bg-slate-400',    text: 'text-white', border: 'border-slate-500',   glow: '#94a3b8' },
+  'Inactive':           { letter: 'Ⓥ', label: 'Vacant',              bg: 'bg-slate-400',    text: 'text-white', border: 'border-slate-500',   glow: '#94a3b8' },
+  'Offered Yet to Join':{ letter: 'Ⓞ', label: 'Offered Yet to Join', bg: 'bg-blue-500',     text: 'text-white', border: 'border-blue-600',    glow: '#3b82f6' },
+  'Resigned on Roll':   { letter: 'Ⓡ', label: 'Resigned on Roll',    bg: 'bg-orange-500',   text: 'text-white', border: 'border-orange-600',  glow: '#f97316' },
+  'Replacement Joined': { letter: 'Ⓟ', label: 'Replacement Joined',  bg: 'bg-indigo-500',   text: 'text-white', border: 'border-indigo-600',  glow: '#6366f1' },
+  'Under Notice Period':{ letter: 'Ⓡ', label: 'Resigned on Roll',    bg: 'bg-orange-500',   text: 'text-white', border: 'border-orange-600',  glow: '#f97316' },
+  'Hold':               { letter: 'Ⓗ', label: 'Hold',                bg: 'bg-red-500',      text: 'text-white', border: 'border-red-600',     glow: '#ef4444' },
+  'Frozen':             { letter: 'Ⓕ', label: 'Frozen',              bg: 'bg-cyan-500',     text: 'text-white', border: 'border-cyan-600',    glow: '#06b6d4' },
+  'Merged':             { letter: 'Ⓜ', label: 'Merged',              bg: 'bg-purple-500',   text: 'text-white', border: 'border-purple-600',  glow: '#a855f7' },
+  'Combined Position':  { letter: 'Ⓒ', label: 'Combined Position',   bg: 'bg-fuchsia-500',  text: 'text-white', border: 'border-fuchsia-600', glow: '#d946ef' },
+  'Transfer Pending':   { letter: 'Ⓣ', label: 'Transfer Pending',    bg: 'bg-amber-500',    text: 'text-white', border: 'border-amber-600',   glow: '#f59e0b' },
+};
+
+export const STATUS_MAP: Record<string, string> = {
+  'A': 'Active',
+  'V': 'Vacant Position',
+  'OYJ': 'Offered Yet to Join',
+  'RoR': 'Resigned on Roll',
+  'RP': 'Replacement Joined',
+  'H': 'Hold',
+  'F': 'Frozen',
+  'M': 'Merged',
+  'C': 'Combined Position',
+  'T': 'Transfer Pending'
+};
+
+export const STATUS_SYMBOLS: Record<string, string> = {
+  'Active': 'Ⓐ', 'Vacant Position': 'Ⓥ', 'Inactive': 'Ⓥ', 'Offered Yet to Join': 'Ⓞ', 
+  'Resigned on Roll': 'Ⓡ', 'Replacement Joined': 'Ⓟ', 'Hold': 'Ⓗ', 'Frozen': 'Ⓕ', 
+  'Merged': 'Ⓜ️', 'Combined Position': 'Ⓒ', 'Transfer Pending': 'Ⓣ', 'Under Notice Period': 'Ⓡ'
+};
+
+export const STATUS_TITLES: Record<string, string> = {
+  'Active': 'Active', 'Vacant Position': 'Vacant', 'Inactive': 'Vacant', 'Offered Yet to Join': 'Offered Yet to Join', 
+  'Resigned on Roll': 'Resigned on Roll', 'Replacement Joined': 'Replacement Joined', 'Hold': 'Hold', 'Frozen': 'Frozen', 
+  'Merged': 'Merged', 'Combined Position': 'Combined', 'Transfer Pending': 'Transfer Pending', 'Under Notice Period': 'Resigned on Roll'
+};
+
 interface OrgChartProps {
   employees: Employee[];
+  positions: Position[];
   activeRole: Role;
   onNavigateToDetails?: (id: string) => void;
   onDepartmentClick?: (dept: string) => void;
+  onRefresh?: () => void;
 }
 
 // ─── Theming ──────────────────────────────────────────────────────────
@@ -31,13 +78,143 @@ const fmtCTC = (n: number) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────
-export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNavigateToDetails, onDepartmentClick }) => {
+export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, activeRole, onNavigateToDetails, onDepartmentClick, onRefresh }) => {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [panelIn, setPanelIn] = useState(false);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  
+  // ── Persistent expand state (localStorage-backed) ──
+  const EXPAND_STORAGE_KEY = 'orgchart-expanded-nodes';
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(EXPAND_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return new Set<string>(parsed);
+      }
+    } catch { /* ignore corrupt storage */ }
+    return new Set<string>();
+  });
+  const hasInitializedExpand = useRef(false);
+  
+  // Persist to localStorage on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(EXPAND_STORAGE_KEY, JSON.stringify([...expandedNodes]));
+    } catch { /* quota exceeded, ignore */ }
+  }, [expandedNodes]);
+  
   const [isDownloading, setIsDownloading] = useState(false);
   const [showCTC, setShowCTC] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<'tree' | 'mindmap'>('tree');
+  
+  // ── Drag & Drop State ──
+  const [draggingEmpId, setDraggingEmpId] = useState<string | null>(null);
+  const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
+  const [dropSuccessNodeId, setDropSuccessNodeId] = useState<string | null>(null);
+  const [dropDialog, setDropDialog] = useState<{ empId: string; targetPosition: Position; targetNodeId: string } | null>(null);
+  const dragTrailRef = useRef<HTMLDivElement | null>(null);
+  const dragSourceRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleMoveEmployee = useCallback(async (empId: string, newPosition: Position, dropNodeId: string, action: 'merge' | 'under') => {
+    try {
+      setDropSuccessNodeId(dropNodeId);
+      setTimeout(() => setDropSuccessNodeId(null), 600);
+      
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      let targetPositionId = newPosition.id;
+
+      if (action === 'under') {
+        const empRes = await fetch(`${API_BASE}/api/employees/${empId}`);
+        if (empRes.ok) {
+          const empData = await empRes.json();
+          const newPosRes = await fetch(`${API_BASE}/api/positions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: empData.designation || 'New Role',
+              department: newPosition.department,
+              business_unit: newPosition.business_unit,
+              sub_function: newPosition.sub_function || '',
+              reporting_to_position_id: newPosition.id,
+              status: 'A',
+              budgeted_ctc: empData.ctc_annual || 0
+            })
+          });
+          if (newPosRes.ok) {
+            const newPosData = await newPosRes.json();
+            targetPositionId = newPosData.position?.id || newPosData.id;
+          }
+        }
+      } else if (action === 'merge') {
+        targetPositionId = newPosition.id;
+      }
+
+      const updateData = {
+        position_id: targetPositionId,
+        department: newPosition.department,
+        business_unit: newPosition.business_unit,
+        sub_function: newPosition.sub_function || '',
+        reporting_to_id: null
+      };
+      
+      const res = await fetch(`${API_BASE}/api/employees/${empId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+      if (res.ok && onRefresh) {
+        onRefresh();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDraggingEmpId(null);
+      setDragOverNodeId(null);
+    }
+  }, [onRefresh]);
+  
+  // ── Drag trail animation (thread from source to cursor) ──
+  useEffect(() => {
+    if (!draggingEmpId) {
+      if (dragTrailRef.current) {
+        dragTrailRef.current.style.display = 'none';
+      }
+      return;
+    }
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragSourceRef.current || !dragTrailRef.current) return;
+      const src = dragSourceRef.current;
+      const dx = e.clientX - src.x;
+      const dy = e.clientY - src.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      
+      const trail = dragTrailRef.current;
+      trail.style.display = 'block';
+      trail.style.left = `${src.x}px`;
+      trail.style.top = `${src.y}px`;
+      trail.style.width = `${len}px`;
+      trail.style.transform = `rotate(${angle}deg)`;
+      trail.style.transformOrigin = '0 50%';
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [draggingEmpId]);
+  const [layoutMode, setLayoutMode] = useState<'tree' | 'mindmap'>(() => {
+    try {
+      const saved = localStorage.getItem('orgchart-layout-mode');
+      if (saved === 'mindmap' || saved === 'tree') return saved;
+    } catch { /* ignore corrupt storage */ }
+    return 'tree';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('orgchart-layout-mode', layoutMode);
+    } catch { /* quota exceeded, ignore */ }
+  }, [layoutMode]);
+
   const [groupBy, setGroupBy] = useState<'reporting' | 'department'>('department');
   const [targets, setTargets] = useState<HRTargets | null>(null);
   const treeRef = React.useRef<HTMLDivElement>(null);
@@ -56,202 +233,121 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
     fetchTargets().then(setTargets).catch(console.error);
   }, []);
 
-  const augmentedEmployees = useMemo(() => {
-    // Map Inactive employees to Vacant, and filter out those that are replaced
-    let result = employees
-      .filter(e => e.employment_status !== 'Inactive') as Employee[];
-
-    if (!targets) return result;
-
-
-    targets.departments.forEach(deptTarget => {
-      const deptName = deptTarget.department;
-      
-      if (deptTarget.designations && deptTarget.designations.length > 0) {
-        deptTarget.designations.forEach(desig => {
-          const actualHc = employees.filter(e => e.department === deptName && e.designation === desig.designation && e.employment_status !== 'Inactive').length;
-          const vacancies = Math.max(0, desig.budgeted_hc - actualHc);
-          
-          if (vacancies > 0) {
-            // Find a manager in this dept
-            const deptEmps = employees.filter(e => e.department === deptName && e.employment_status !== 'Inactive');
-            const manager = deptEmps.sort((a, b) => a.role_tier - b.role_tier)[0];
-            
-            for (let i = 0; i < vacancies; i++) {
-              result.push({
-                id: `vacant-${deptName}-${desig.designation}-${i}`,
-                emp_id: '',
-                full_name: 'Vacant Position',
-                employment_status: 'Inactive',
-                department: deptName,
-                business_unit: manager?.business_unit || 'Operations',
-                designation: desig.designation,
-                role_tier: (manager?.role_tier || 4) + 1,
-                photo_url: '',
-                reporting_to_id: manager ? manager.id : null,
-                company_name: 'Axxel',
-                email_official: '',
-                ctc_annual: desig.budget_allocated ? Math.round(desig.budget_allocated / desig.budgeted_hc) : 0,
-                ctc_currency: 'INR',
-                budget_allocated: desig.budget_allocated ? Math.round(desig.budget_allocated / desig.budgeted_hc) : 0,
-                dashboard_access: 'No'
-              });
-            }
-          }
-        });
-      } else {
-        const actualHc = employees.filter(e => e.department === deptName && e.employment_status !== 'Inactive').length;
-        const vacancies = Math.max(0, deptTarget.budgeted_hc - actualHc);
-        
-        if (vacancies > 0) {
-          const deptEmps = employees.filter(e => e.department === deptName && e.employment_status !== 'Inactive');
-          const manager = deptEmps.sort((a, b) => a.role_tier - b.role_tier)[0];
-          
-          for (let i = 0; i < vacancies; i++) {
-            result.push({
-              id: `vacant-${deptName}-${i}`,
-              emp_id: '',
-              full_name: 'Vacant Position',
-              employment_status: 'Inactive',
-              department: deptName,
-              business_unit: manager?.business_unit || 'Operations',
-              designation: 'Open Role',
-              role_tier: (manager?.role_tier || 4) + 1,
-              photo_url: '',
-              reporting_to_id: manager ? manager.id : null,
-              company_name: 'Axxel',
-              email_official: '',
-              ctc_annual: 0,
-              ctc_currency: 'INR',
-              budget_allocated: 0,
-              dashboard_access: 'No'
-            });
-          }
-        }
-      }
+  const positionNodes = useMemo(() => {
+    let result: PositionNode[] = positions.map(pos => {
+      const occupants = employees.filter(e => e.position_id === pos.id);
+      return { position: pos, occupants };
     });
-    
+
     if (groupBy === 'reporting') return result;
 
-    const newEmps: Employee[] = [];
-    const buSet = new Set<string>();
+    const newNodes: PositionNode[] = [];
+    const unitSet = new Set<string>();
     const deptSet = new Set<string>();
-    const subFuncSet = new Set<string>();
+    const subSet = new Set<string>();
 
-    result.forEach(e => {
-      const bu = e.business_unit?.trim();
-      const dept = e.department?.trim() || 'General';
-      const subFunc = e.sub_function?.trim();
+    result.forEach(node => {
+      const pos = node.position;
+      const unit = pos.business_unit?.trim() || 'General Unit';
+      const dept = pos.department?.trim() || 'General Dept';
       
-      const buId = bu ? `bu-${bu}` : null;
-      const deptId = `dept-${bu || 'none'}-${dept}`;
-      const subFuncId = subFunc ? `sub-${deptId}-${subFunc}` : null;
+      const hasSub = !!pos.sub_function?.trim();
+      const sub = pos.sub_function?.trim() || '';
       
-      if (bu && !buSet.has(buId!)) {
-        buSet.add(buId!);
-        newEmps.push({
-          id: buId!,
-          emp_id: '',
-          full_name: bu,
-          designation: 'Business Unit',
-          business_unit: bu,
-          department: '',
-          employment_status: 'Active',
-          role_tier: 1,
-          reporting_to_id: null,
-          photo_url: '',
-          company_name: 'Axxel',
-          email_official: '',
-          ctc_annual: 0,
-          ctc_currency: 'INR',
-          budget_allocated: 0,
-          dashboard_access: 'No'
+      const unitId = `unit-${unit.toLowerCase()}`;
+      const deptId = `${unitId}-dept-${dept.toLowerCase()}`;
+      const subId = `${deptId}-sub-${sub.toLowerCase()}`;
+      
+      if (!unitSet.has(unitId)) {
+        unitSet.add(unitId);
+        newNodes.push({
+          position: {
+            id: unitId,
+            title: 'Business Unit',
+            department: '',
+            business_unit: unit,
+            reporting_to_position_id: null,
+            status: 'A'
+          },
+          occupants: []
         });
       }
-      
+
       if (!deptSet.has(deptId)) {
         deptSet.add(deptId);
-        newEmps.push({
-          id: deptId,
-          emp_id: '',
-          full_name: dept,
-          designation: 'Department',
-          business_unit: bu || '',
-          department: dept,
-          employment_status: 'Active',
-          role_tier: bu ? 2 : 1, // If no BU, Dept is the root
-          reporting_to_id: buId,
-          photo_url: '',
-          company_name: 'Axxel',
-          email_official: '',
-          ctc_annual: 0,
-          ctc_currency: 'INR',
-          budget_allocated: 0,
-          dashboard_access: 'No'
+        newNodes.push({
+          position: {
+            id: deptId,
+            title: 'Department',
+            department: dept,
+            business_unit: unit,
+            reporting_to_position_id: unitId,
+            status: 'A'
+          },
+          occupants: []
         });
       }
 
-      if (subFunc && !subFuncSet.has(subFuncId!)) {
-        subFuncSet.add(subFuncId!);
-        newEmps.push({
-          id: subFuncId!,
-          emp_id: '',
-          full_name: subFunc,
-          designation: 'Sub Function',
-          business_unit: bu || '',
-          department: dept,
-          sub_function: subFunc,
-          employment_status: 'Active',
-          role_tier: bu ? 3 : 2, // Depends on BU
-          reporting_to_id: deptId,
-          photo_url: '',
-          company_name: 'Axxel',
-          email_official: '',
-          ctc_annual: 0,
-          ctc_currency: 'INR',
-          budget_allocated: 0,
-          dashboard_access: 'No'
+      if (hasSub && !subSet.has(subId)) {
+        subSet.add(subId);
+        newNodes.push({
+          position: {
+            id: subId,
+            title: 'Sub Function',
+            sub_function: sub,
+            department: dept,
+            business_unit: unit,
+            reporting_to_position_id: deptId,
+            status: 'A'
+          },
+          occupants: []
         });
       }
 
-      let newReportingTo = subFuncId || deptId;
-      if (e.reporting_to_id) {
-        const mgr = result.find(m => m.id === e.reporting_to_id);
-        if (mgr && mgr.department === e.department && mgr.business_unit === e.business_unit && mgr.sub_function === e.sub_function) {
-          newReportingTo = mgr.id;
+      let newReportingTo: string = hasSub ? subId : deptId;
+      if (pos.reporting_to_position_id) {
+        const mgr = result.find(m => m.position.id === pos.reporting_to_position_id);
+        if (mgr) {
+            const mUnit = mgr.position.business_unit?.trim() || 'General Unit';
+            const mDept = mgr.position.department?.trim() || 'General Dept';
+            const mSub = mgr.position.sub_function?.trim() || '';
+            if (mUnit.toLowerCase() === unit.toLowerCase() && 
+                mDept.toLowerCase() === dept.toLowerCase() && 
+                mSub.toLowerCase() === sub.toLowerCase()) {
+                newReportingTo = mgr.position.id;
+            }
         }
       }
 
-      let shift = 0;
-      if (bu) shift++;
-      shift++; // for dept
-      if (subFunc) shift++; // for sub function
-
-      newEmps.push({
-        ...e,
-        reporting_to_id: newReportingTo,
-        role_tier: e.role_tier + shift
+      newNodes.push({
+        position: { ...pos, reporting_to_position_id: newReportingTo },
+        occupants: node.occupants
       });
     });
     
-    return newEmps;
-  }, [employees, targets, groupBy]);
+    return newNodes;
+  }, [employees, positions, groupBy]);
 
-  // Expand top levels by default on mount
+  // Expand top levels by default on FIRST mount only (if no saved state)
   useEffect(() => {
+    // If we already loaded from localStorage with real data, skip default expansion
+    if (hasInitializedExpand.current) return;
+    hasInitializedExpand.current = true;
+    
+    // If localStorage gave us a non-empty set, keep it as-is
+    if (expandedNodes.size > 0) return;
+    
+    // Otherwise set sensible defaults
     const defaultExpanded = new Set<string>();
-    augmentedEmployees.forEach(e => {
-      // Expand BU nodes by default, but keep Dept nodes collapsed to avoid huge empty horizontal lines
+    positionNodes.forEach(n => {
       if (groupBy === 'department') {
-        if (e.designation === 'Business Unit') defaultExpanded.add(e.id);
-        // Also expand Dept nodes if they are roots (meaning no BU)
-        if (e.designation === 'Department' && !e.reporting_to_id) defaultExpanded.add(e.id);
+        if (n.position.title === 'Business Unit') defaultExpanded.add(n.position.id);
       } else {
-        if (e.role_tier <= 2) defaultExpanded.add(e.id);
+        if (!n.position.reporting_to_position_id || n.occupants.some(o => o.role_tier <= 2)) defaultExpanded.add(n.position.id);
       }
     });
     setExpandedNodes(defaultExpanded);
-  }, [augmentedEmployees, groupBy]);
+  }, [positionNodes, groupBy]);
 
   const selectEmp = (emp: Employee) => {
     // If admin or management, navigate directly to details page when they click someone in the hierarchy
@@ -287,19 +383,14 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
       return mgr ? mgr.full_name : '';
     };
 
-    const rows = augmentedEmployees.map(e => [
-      e.emp_id || '',
-      e.full_name,
-      e.email_official || '',
-      e.designation,
-      e.department || '',
-      e.business_unit || '',
-      e.role_tier,
-      e.ctc_annual || 0,
-      e.budget_allocated || 0,
-      e.employment_status,
-      getManagerName(e.reporting_to_id)
-    ]);
+    const rows = positionNodes.flatMap(node => {
+      if (node.occupants.length === 0) {
+        return [[node.position.id, node.position.title, '', node.position.title, node.position.department, node.position.business_unit, '', node.position.budgeted_ctc || 0, node.position.budgeted_ctc || 0, node.position.status, getManagerName(node.position.reporting_to_position_id)]];
+      }
+      return node.occupants.map(e => [
+        e.emp_id || '', e.full_name, e.email_official || '', e.designation, e.department || '', e.business_unit || '', e.role_tier, e.ctc_annual || 0, e.budget_allocated || 0, e.employment_status, getManagerName(node.position.reporting_to_position_id)
+      ]);
+    });
 
     const csvContent = [
       headers.join(','),
@@ -477,18 +568,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
     });
   };
 
-  const getReports = (e: Employee) => augmentedEmployees.filter(x => x.reporting_to_id === e.id);
-  const getManager = (e: Employee) => e.reporting_to_id ? augmentedEmployees.find(x => x.id === e.reporting_to_id) : undefined;
+  const getChildren = (n: PositionNode) => positionNodes.filter(x => x.position.reporting_to_position_id === n.position.id && x.position.id !== n.position.id);
+  const getManager = (e: Employee) => e.reporting_to_id ? employees.find(x => x.id === e.reporting_to_id) : undefined;
+  const getReports = (emp: Employee) => employees.filter(x => x.reporting_to_id === emp.id);
 
   // Filtering Logic
   const hasActiveFilter = search.trim() !== '' || buFilter !== '' || deptFilter !== '';
 
-  const isMatch = (e: Employee) => {
+  const isMatch = (n: PositionNode) => {
     if (!hasActiveFilter) return true;
     const s = search.toLowerCase();
-    const matchS = !s || e.full_name.toLowerCase().includes(s) || e.designation.toLowerCase().includes(s);
-    const matchBU = !buFilter || e.business_unit === buFilter;
-    const matchD = !deptFilter || e.department === deptFilter;
+    const matchS = !s || n.position.title.toLowerCase().includes(s) || n.occupants.some(o => o.full_name.toLowerCase().includes(s));
+    const matchBU = !buFilter || n.position.business_unit === buFilter;
+    const matchD = !deptFilter || n.position.department === deptFilter;
     return matchS && matchBU && matchD;
   };
 
@@ -498,32 +590,32 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
       return {
         matchedIds: new Set<string>(),
         effectiveParentMap: new Map<string, string | null>(),
-        roots: augmentedEmployees.filter(e => !e.reporting_to_id || !augmentedEmployees.some(x => x.id === e.reporting_to_id)).sort((a, b) => a.role_tier - b.role_tier)
+        roots: positionNodes.filter(n => !n.position.reporting_to_position_id || !positionNodes.some(x => x.position.id === n.position.reporting_to_position_id))
       };
     }
     
-    const empMap = new Map(augmentedEmployees.map(e => [e.id, e]));
-    const matched = augmentedEmployees.filter(isMatch);
-    const matchedIds = new Set(matched.map(e => e.id));
+    const posMap = new Map(positionNodes.map(n => [n.position.id, n]));
+    const matched = positionNodes.filter(isMatch);
+    const matchedIds = new Set(matched.map(n => n.position.id));
     
     const effectiveParentMap = new Map<string, string | null>();
-    matched.forEach(e => {
-      let curr = e.reporting_to_id;
+    matched.forEach(n => {
+      let curr = n.position.reporting_to_position_id;
       let effParent: string | null = null;
-      while (curr && empMap.has(curr)) {
+      while (curr && posMap.has(curr)) {
         if (matchedIds.has(curr)) {
           effParent = curr;
           break;
         }
-        curr = empMap.get(curr)?.reporting_to_id ?? null;
+        curr = posMap.get(curr)?.position.reporting_to_position_id ?? null;
       }
-      effectiveParentMap.set(e.id, effParent);
+      effectiveParentMap.set(n.position.id, effParent);
     });
 
-    const roots = matched.filter(e => effectiveParentMap.get(e.id) === null).sort((a, b) => a.role_tier - b.role_tier);
+    const roots = matched.filter(n => effectiveParentMap.get(n.position.id) === null);
 
     return { matchedIds, effectiveParentMap, roots };
-  }, [augmentedEmployees, search, buFilter, deptFilter, hasActiveFilter]);
+  }, [positionNodes, search, buFilter, deptFilter, hasActiveFilter]);
 
   // Auto-expand nodes that have matching children when filtering
   useEffect(() => {
@@ -532,7 +624,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
     }
   }, [matchContext, hasActiveFilter]);
 
-  if (!augmentedEmployees.length) return (
+  if (!positionNodes.length) return (
     <div className="flex flex-col items-center justify-center py-28 text-slate-400">
       <Users className="w-14 h-14 mb-4 opacity-30" />
       <p className="font-bold text-lg">No employees to display</p>
@@ -540,10 +632,39 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
   );
 
   return (
-    <div className="relative h-[calc(100vh-140px)] flex flex-col bg-slate-50 overflow-hidden rounded-3xl border border-slate-200/60 shadow-inner">
+    <div className="relative h-[calc(100vh-80px)] flex flex-col bg-slate-50 overflow-hidden rounded-3xl border border-slate-200/60 shadow-inner">
       
+      {/* ── Vacancy Analytics Header ── */}
+      <div className="absolute top-4 left-4 z-20 flex gap-4">
+        <div className="bg-white border border-slate-200/80 p-3 rounded-2xl shadow-lg">
+          <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Recruitment Vacancy HC</p>
+          <p className="text-xl font-black text-slate-800">
+            {targets ? 
+              (targets.global_planned_headcount ?? targets.departments.reduce((sum, d) => sum + (d.budgeted_hc || 0), 0))
+              - employees.filter(e => e.employment_status === 'Active').length
+              + positions.filter(p => p.status === 'RoR').length
+              - positions.filter(p => p.status === 'OYJ').length
+              - positions.filter(p => p.status === 'H').length
+              - positions.filter(p => p.status === 'F').length
+              - positions.filter(p => p.status === 'M').length
+            : 0}
+          </p>
+        </div>
+        <div className="bg-white border border-slate-200/80 p-3 rounded-2xl shadow-lg">
+          <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">CTC Vacancy</p>
+          <p className="text-xl font-black text-slate-800">
+            {fmtCTC(
+              (targets ? targets.departments.reduce((sum, d) => sum + (d.budget_allocated || 0), 0) : 0)
+              - employees.filter(e => e.employment_status === 'Active').reduce((sum, e) => sum + (e.ctc_annual || 0), 0)
+              + employees.filter(e => e.employment_status === 'Resigned on Roll').reduce((sum, e) => sum + (e.ctc_annual || 0), 0)
+              - positions.filter(p => p.status === 'OYJ').reduce((sum, p) => sum + (p.budgeted_ctc || 0), 0)
+            )}
+          </p>
+        </div>
+      </div>
+
       {/* ── Floating Toolbar ── */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-slate-200/80 p-2 rounded-2xl shadow-lg">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white border border-slate-200/80 p-2 rounded-2xl shadow-lg">
         <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-200/60">
           <Filter className="w-4 h-4 text-indigo-500" />
           <span className="text-xs font-bold text-slate-700">Filters</span>
@@ -666,40 +787,51 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
           maxScale={3}
           centerOnInit={true}
           limitToBounds={false}
+          panning={{ disabled: !!draggingEmpId, excluded: ['drag-emp-card'] }}
         >
           {({ zoomIn, zoomOut, resetTransform }) => (
             <>
               {/* Toolbar Controls */}
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white/90 backdrop-blur-md border border-slate-200/80 p-2 rounded-xl shadow-lg">
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white border border-slate-200/80 p-2 rounded-xl shadow-lg">
                 <button onClick={() => zoomOut()} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Zoom Out</button>
                 <button onClick={() => resetTransform()} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Reset</button>
                 <button onClick={() => zoomIn()} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Zoom In</button>
                 <div className="w-px h-4 bg-slate-300 mx-1" />
-                <button onClick={() => setExpandedNodes(new Set(augmentedEmployees.map(e => e.id)))} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Expand All</button>
+                <button onClick={() => setExpandedNodes(new Set(positionNodes.map(n => n.position.id)))} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Expand All</button>
                 <button onClick={() => setExpandedNodes(new Set())} className="px-3 py-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-colors">Collapse All</button>
               </div>
 
-              <TransformComponent wrapperStyle={{ width: '100%', height: '100%', minHeight: 'calc(100vh - 4rem)' }} contentStyle={{ padding: '140px 100px 140px 100px', minWidth: '100%', display: 'flex', justifyContent: 'center' }}>
+              <TransformComponent wrapperStyle={{ width: '100%', height: '100%', minHeight: 'calc(100vh - 4rem)' }} contentStyle={{ padding: '140px 100px 400px 100px', minWidth: '100%', display: 'flex', justifyContent: 'center' }}>
                 <div ref={treeRef} className="pb-24 min-w-max">
                   <OrgTreeView
-                    employees={augmentedEmployees}
+                    positionNodes={positionNodes}
                     selectEmp={selectEmp}
                     selected={selected}
-                    getReports={getReports}
+                    getChildren={getChildren}
                     expandedNodes={expandedNodes}
                     toggleNode={toggleNode}
                     matchContext={matchContext}
                     hasActiveFilter={hasActiveFilter}
                     onDepartmentClick={onDepartmentClick}
+                    onMoveEmployee={handleMoveEmployee}
                     showCTC={showCTC}
                     canCTC={canCTC}
                     layoutMode={layoutMode}
+                    draggingEmpId={draggingEmpId}
+                    setDraggingEmpId={setDraggingEmpId}
+                    dragOverNodeId={dragOverNodeId}
+                    setDragOverNodeId={setDragOverNodeId}
+                    dropSuccessNodeId={dropSuccessNodeId}
+                    dragSourceRef={dragSourceRef}
+                    onDropEmployeeTrigger={(empId, targetNode) => setDropDialog({ empId, targetPosition: targetNode.position, targetNodeId: targetNode.position.id })}
                   />
                 </div>
               </TransformComponent>
             </>
           )}
         </TransformWrapper>
+        {/* Drag trail thread line */}
+        <div ref={dragTrailRef} className="drag-trail-line" style={{ display: 'none' }} />
       </div>
 
       {/* ── Hidden Print Target for A4 Download ── */}
@@ -709,7 +841,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
       <div
         id="org-chart-download-target"
         style={{
-          position: 'absolute',
+          position: 'fixed',
           top: 0,
           left: 0,
           visibility: 'hidden',
@@ -721,11 +853,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
         }}
       >
         <OrgTreeView
-          employees={augmentedEmployees}
+          positionNodes={positionNodes}
           selectEmp={() => {}}
           selected={null}
-          getReports={getReports}
-          expandedNodes={hasActiveFilter ? new Set(matchContext.matchedIds) : new Set(augmentedEmployees.map(e => e.id))}
+          getChildren={getChildren}
+          expandedNodes={hasActiveFilter ? new Set(matchContext.matchedIds) : new Set(positionNodes.map(n => n.position.id))}
           toggleNode={() => {}}
           matchContext={matchContext}
           hasActiveFilter={hasActiveFilter}
@@ -845,6 +977,44 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
           </div>
         </div>
       )}
+
+      {/* ── Drop Action Dialog ── */}
+      {dropDialog && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-xl font-black text-slate-900 mb-2">Move Employee</h3>
+            <p className="text-sm text-slate-600 mb-6 font-medium leading-relaxed">
+              You are moving an employee. Would you like them to report to <strong className="text-slate-800">{dropDialog.targetPosition.title}</strong> or merge into this position?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  handleMoveEmployee(dropDialog.empId, dropDialog.targetPosition, dropDialog.targetNodeId, 'under');
+                  setDropDialog(null);
+                }}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition shadow-sm"
+              >
+                Report To (New Subordinate)
+              </button>
+              <button 
+                onClick={() => {
+                  handleMoveEmployee(dropDialog.empId, dropDialog.targetPosition, dropDialog.targetNodeId, 'merge');
+                  setDropDialog(null);
+                }}
+                className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition shadow-sm"
+              >
+                Merge Position
+              </button>
+              <button 
+                onClick={() => setDropDialog(null)}
+                className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition mt-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -852,313 +1022,333 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, activeRole, onNav
 // ─── Recursive Tree Components ────────────────────────────────────────
 
 interface TreeSharedProps {
-  employees: Employee[];
+  positionNodes: PositionNode[];
   selectEmp: (e: Employee) => void;
   selected: Employee | null;
-  getReports: (e: Employee) => Employee[];
+  getChildren: (node: PositionNode) => PositionNode[];
   expandedNodes: Set<string>;
   toggleNode: (id: string) => void;
   matchContext: {
     matchedIds: Set<string>;
     effectiveParentMap: Map<string, string | null>;
-    roots: Employee[];
+    roots: PositionNode[];
   };
   hasActiveFilter: boolean;
   isPrint?: boolean;
   onDepartmentClick?: (dept: string) => void;
+  onMoveEmployee?: (empId: string, newPos: Position, dropNodeId: string, action: 'merge' | 'under') => void;
   showCTC?: boolean;
   canCTC?: boolean;
   layoutMode: 'tree' | 'mindmap';
+  // Drag & Drop
+  draggingEmpId?: string | null;
+  setDraggingEmpId?: (id: string | null) => void;
+  dragOverNodeId?: string | null;
+  setDragOverNodeId?: (id: string | null) => void;
+  dropSuccessNodeId?: string | null;
+  dragSourceRef?: React.MutableRefObject<{ x: number; y: number } | null>;
+  onDropEmployeeTrigger?: (empId: string, targetNode: PositionNode) => void;
 }
 
 const OrgTreeView: React.FC<TreeSharedProps> = (props) => {
-  const { matchContext, hasActiveFilter, employees, isPrint } = props;
+  const { matchContext, hasActiveFilter, positionNodes, isPrint } = props;
   
-  const empIds = useMemo(() => new Set(employees.map(e => e.id)), [employees]);
+  const posIds = useMemo(() => new Set(positionNodes.map(n => n.position.id)), [positionNodes]);
   const normalRoots = useMemo(() => {
-    let rts = employees
-      .filter(e => !e.reporting_to_id || !empIds.has(e.reporting_to_id) || e.reporting_to_id === e.id)
-      .sort((a, b) => a.role_tier - b.role_tier);
-
-    // Fallback: If still no roots (e.g. strict circular dependency like A->B->C->A)
-    if (rts.length === 0 && employees.length > 0) {
-      const highestTier = Math.min(...employees.map(e => e.role_tier));
-      rts = employees.filter(e => e.role_tier === highestTier);
+    let rts = positionNodes.filter(n => !n.position.reporting_to_position_id || !posIds.has(n.position.reporting_to_position_id) || n.position.reporting_to_position_id === n.position.id);
+    if (rts.length === 0 && positionNodes.length > 0) {
+      rts = [positionNodes[0]];
     }
     return rts;
-  }, [employees, empIds]);
+  }, [positionNodes, posIds]);
 
   const roots = hasActiveFilter ? matchContext.roots : normalRoots;
-
   const isMindmap = props.layoutMode === 'mindmap';
 
   return (
     <div 
       className={isPrint ? '' : (isMindmap ? 'flex flex-col items-start gap-12' : 'flex justify-center gap-12')} 
       style={isPrint ? {
-        display: 'flex',
-        flexDirection: isMindmap ? 'column' : 'row',
-        justifyContent: isMindmap ? 'flex-start' : 'center',
-        alignItems: isMindmap ? 'flex-start' : 'center',
+        display: 'flex', flexDirection: isMindmap ? 'column' : 'row',
+        justifyContent: isMindmap ? 'flex-start' : 'center', alignItems: isMindmap ? 'flex-start' : 'center',
       } : { animation: 'fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both' }}
     >
       {roots.map(root => (
-        <div key={root.id} style={isPrint ? (isMindmap ? { padding: '24px 0' } : { padding: '0 24px' }) : undefined}>
-          <OrgTreeNode emp={root} {...props} />
+        <div key={root.position.id} style={isPrint ? (isMindmap ? { padding: '24px 0' } : { padding: '0 24px' }) : undefined}>
+          <OrgTreeNode node={root} {...props} />
         </div>
       ))}
     </div>
   );
 };
 
-const OrgTreeNode: React.FC<TreeSharedProps & { emp: Employee }> = (props) => {
-  const { emp, selectEmp, selected, getReports, expandedNodes, toggleNode, matchContext, hasActiveFilter } = props;
+const OrgTreeNode: React.FC<TreeSharedProps & { node: PositionNode }> = (props) => {
+  const { node, selectEmp, selected, getChildren, expandedNodes, toggleNode, matchContext, hasActiveFilter } = props;
+  const { position, occupants } = node;
   
   const children = hasActiveFilter 
     ? Array.from(matchContext.matchedIds)
-        .map(id => props.employees.find(e => e.id === id)!)
-        .filter(e => matchContext.effectiveParentMap.get(e.id) === emp.id)
-        .sort((a, b) => a.role_tier - b.role_tier)
-    : getReports(emp).sort((a, b) => a.role_tier - b.role_tier);
+        .map(id => props.positionNodes.find(n => n.position.id === id)!)
+        .filter(n => matchContext.effectiveParentMap.get(n.position.id) === position.id)
+    : getChildren(node);
 
-  const isExpanded = expandedNodes.has(emp.id);
-  const theme = BU_THEMES[emp.business_unit] ?? DT;
-  const active = selected?.id === emp.id;
+  const isExpanded = expandedNodes.has(position.id);
+  const theme = BU_THEMES[position.business_unit] ?? DT;
+  const active = occupants.some(emp => selected?.id === emp.id);
   const isPrint = props.isPrint;
   const isMindmap = props.layoutMode === 'mindmap';
 
-  const opacityClass = emp.employment_status === 'Inactive' ? 'opacity-60 grayscale' : '';
-  
-  // New Employee Check (within last 30 days)
-  const isNewEmployee = emp.join_date 
-    ? (new Date().getTime() - new Date(emp.join_date).getTime()) <= (30 * 24 * 3600 * 1000)
-    : false;
+  const isVacant = occupants.length === 0 && position.title !== 'Sub Function' && position.title !== 'Department' && position.title !== 'Business Unit';
+  const opacityClass = isVacant ? 'opacity-70' : '';
+  const isVirtualNode = position.title === 'Business Unit' || position.title === 'Department' || position.title === 'Sub Function';
 
-  const isVirtualNode = emp.designation === 'Business Unit' || emp.designation === 'Department';
+  const isDragOver = props.dragOverNodeId === position.id;
+  const isDropSuccess = props.dropSuccessNodeId === position.id;
+  const isDraggingAny = !!props.draggingEmpId;
+  const dragEnterCounterRef = useRef(0);
 
   const cardContent = (
     <div 
-      onClick={() => {
+      onDragOver={(e) => {
+        if (!isVirtualNode && isDraggingAny) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }
+      }}
+      onDragEnter={(e) => {
+        if (!isVirtualNode && isDraggingAny) {
+          e.preventDefault();
+          dragEnterCounterRef.current++;
+          props.setDragOverNodeId?.(position.id);
+        }
+      }}
+      onDragLeave={() => {
         if (!isVirtualNode) {
-          selectEmp(emp);
+          dragEnterCounterRef.current--;
+          if (dragEnterCounterRef.current <= 0) {
+            dragEnterCounterRef.current = 0;
+            if (props.dragOverNodeId === position.id) {
+              props.setDragOverNodeId?.(null);
+            }
+          }
+        }
+      }}
+      onDrop={(e) => {
+        if (!isVirtualNode) {
+          e.preventDefault();
+          dragEnterCounterRef.current = 0;
+          const empId = e.dataTransfer.getData('text/plain');
+          if (empId && props.onDropEmployeeTrigger) {
+            props.onDropEmployeeTrigger(empId, node);
+          }
+          props.setDragOverNodeId?.(null);
+        }
+      }}
+      onClick={(e) => {
+        if (position.title === 'Department' && props.onDepartmentClick && position.department) {
+          e.stopPropagation();
+          props.onDepartmentClick(position.department);
         }
       }}
       className={[
-        'w-64 border flex items-center gap-3 text-left transition-all duration-300',
-        isPrint
-          ? 'border-slate-200 rounded-xl p-3'
-          : [
-              'rounded-2xl bg-white pt-3 pl-3',
-              isMindmap
-                ? (children.length > 0 ? 'pr-6 pb-3' : 'pr-3 pb-3')
-                : (children.length > 0 ? 'pr-3 pb-6' : 'pr-3 pb-3'),
-              active
-                ? `border-indigo-400 shadow-[0_0_0_2px_rgba(99,102,241,0.2)] shadow-xl ring-2 ring-indigo-500/50 scale-105 z-10 cursor-pointer`
-                : isVirtualNode
-                  ? 'border-slate-200/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-default'
-                  : 'border-slate-200/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-0.5 cursor-pointer'
-            ].join(' ')
+        'w-64 border flex flex-col text-left transition-all duration-300 relative',
+        isPrint ? 'border-slate-200 rounded-xl p-3 bg-white' : [
+          isVirtualNode ? (
+            position.title === 'Business Unit' ? 'rounded-2xl bg-slate-800 p-3 border-slate-700 shadow-lg text-white' :
+            position.title === 'Department' ? 'rounded-2xl bg-indigo-100/60 p-3 border-indigo-200 shadow-sm text-indigo-900' :
+            'rounded-2xl bg-blue-50 p-3 border-blue-200 shadow-sm text-blue-900'
+          ) : 'rounded-2xl bg-white p-3',
+          active && !isVirtualNode ? `border-indigo-400 shadow-xl ring-2 ring-indigo-500/50 z-10` : 
+          position.title === 'Department' && props.onDepartmentClick 
+            ? 'hover:border-indigo-300 hover:shadow-md cursor-pointer' 
+            : isVirtualNode ? 'cursor-default' : 'border-slate-200/80 shadow-sm hover:shadow-md cursor-pointer',
+          isDragOver && !isVirtualNode ? 'drag-over-valid' : '',
+          isDropSuccess ? 'drop-success' : '',
+        ].join(' ')
       ].join(' ')}
-      style={isPrint ? {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        textAlign: 'left',
-        padding: '12px',
-        border: '1px solid #e2e8f0',
-        backgroundColor: '#ffffff',
-        borderRadius: '12px',
-        position: 'relative',
-        width: '256px',
-        boxSizing: 'border-box'
-      } : { position: 'relative' }}
+      style={isPrint ? { padding: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', borderRadius: '12px', position: 'relative', width: '256px', boxSizing: 'border-box' } : {}}
     >
-      {/* Left colored accent strip */}
-      <div
-        style={isPrint ? {
-          position: 'absolute',
-          left: 0, top: 16, bottom: 16,
-          width: 5,
-          borderRadius: '0 4px 4px 0',
-          background: (
-            emp.business_unit === 'Technology' ? '#4f46e5' :
-            emp.business_unit === 'Growth' ? '#059669' :
-            emp.business_unit === 'Sales' ? '#7c3aed' :
-            emp.business_unit === 'Operations' ? '#e11d48' :
-            emp.business_unit === 'Executive' ? '#d97706' : '#64748b'
-          )
-        } : undefined}
-        className={isPrint ? '' : `absolute left-0 top-4 bottom-4 w-1.5 rounded-r-full bg-gradient-to-b ${theme.gradient}`}
-      />
-      
-      <div 
-        style={isPrint ? { position: 'relative', flexShrink: 0, marginLeft: '6px', marginRight: '12px' } : undefined}
-        className="relative shrink-0 ml-1.5"
-      >
-        <img 
-          src={emp.photo_url || DEFAULT_AVATAR} 
-          alt={emp.full_name} 
-          style={isPrint ? { width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #ffffff', display: 'block' } : undefined}
-          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" 
-        />
-        {emp.employment_status === 'Under Notice Period' && (
-           <div 
-             style={isPrint ? { position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, backgroundColor: '#f59e0b', border: '2px solid #ffffff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 } : undefined}
-             className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 border-2 border-white rounded-full flex items-center justify-center shadow-sm" 
-             title="Under Notice"
-           >
-             <span style={isPrint ? { color: '#ffffff', fontSize: 8, fontWeight: 900, lineHeight: 1 } : undefined} className="text-white text-[8px] font-black">!</span>
-           </div>
-        )}
-      </div>
-      
-      <div className="min-w-0 flex-1" style={isPrint ? { overflow: 'visible', textAlign: 'left', minWidth: 0, flex: 1 } : undefined}>
-        <h4
-          className={isPrint ? "font-extrabold text-sm flex items-center gap-2" : "font-extrabold text-sm truncate flex items-center gap-2"}
-          style={{ color: '#1e293b', fontWeight: 800, lineHeight: isPrint ? '1.5' : undefined, overflow: isPrint ? 'visible' : undefined, whiteSpace: isPrint ? 'normal' : undefined }}
-        >
-          {emp.employment_status === 'Inactive' ? 'Vacant Position' : emp.full_name}
-          {emp.emp_id && (
-            <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="Employee ID">
-              {emp.emp_id}
+      {/* Accent Strip */}
+      {!isPrint && !isVirtualNode && (
+        <div className={`absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b ${theme.gradient}`} />
+      )}
+
+      {/* Position Header */}
+      <div className="flex flex-col mb-2">
+        <h4 className={`font-bold text-xs border-b pb-1 mb-2 flex justify-between items-center ${isVirtualNode ? (position.title === 'Business Unit' ? 'border-slate-600 text-white' : position.title === 'Department' ? 'border-indigo-200 text-indigo-900' : 'border-blue-200 text-blue-900') : 'text-slate-800 border-slate-100'}`}>
+          <span className="truncate">{isVirtualNode ? (position.title === 'Business Unit' ? position.business_unit : position.title === 'Department' ? position.department : position.sub_function) : position.title}</span>
+          {!isVirtualNode && (() => {
+            let statusKey = STATUS_MAP[position.status] || 'Active';
+            if (isVacant) statusKey = 'Vacant Position';
+            const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG['Active'];
+            return (
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold flex items-center gap-1 ${cfg.bg} ${cfg.text} ${cfg.border}`} style={{ boxShadow: `0 0 8px ${cfg.glow}40` }}>
+                <span>{cfg.letter}</span>
+                <span>{cfg.label}</span>
+              </span>
+            );
+          })()}
+        </h4>
+        <div className="flex items-center gap-1.5">
+          {isVirtualNode && (
+            <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${position.title === 'Business Unit' ? 'bg-slate-700 text-slate-300' : position.title === 'Department' ? 'bg-indigo-200/50 text-indigo-700' : 'bg-blue-200/50 text-blue-700'}`}>
+              {position.title}
             </span>
           )}
-        </h4>
-        {/* Hide sub-label for dept/BU header nodes */}
-        {emp.designation !== 'Department' && emp.designation !== 'Business Unit' && (
-          <p
-            className={isPrint ? "text-[11px] font-semibold" : "text-[11px] font-semibold truncate mt-0.5"}
-            style={{ color: '#64748b', lineHeight: isPrint ? '1.4' : undefined, overflow: isPrint ? 'visible' : undefined, whiteSpace: isPrint ? 'normal' : undefined }}
-          >
-            {emp.designation}
-          </p>
-        )}
-        <div 
-          style={isPrint ? { marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'flex-start' } : undefined}
-          className="mt-1.5 flex items-center gap-1.5 cursor-pointer hover:opacity-80"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (props.onDepartmentClick && emp.department) props.onDepartmentClick(emp.department);
-          }}
-        >
-          {/* Hide dept badge for dept/BU header nodes (they already ARE the dept name) */}
-          {emp.designation !== 'Department' && emp.designation !== 'Business Unit' && (
-            <span style={{
-              display: 'inline-block', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
-              padding: '2px 5px', borderRadius: 4, lineHeight: 'normal',
-              backgroundColor: (
-                emp.business_unit === 'Technology' ? '#e0e7ff' : emp.business_unit === 'Growth' ? '#d1fae5' :
-                emp.business_unit === 'Sales' ? '#ede9fe' : emp.business_unit === 'Operations' ? '#ffe4e6' :
-                emp.business_unit === 'Executive' ? '#fef3c7' : '#f1f5f9'
-              ),
-              color: (
-                emp.business_unit === 'Technology' ? '#3730a3' : emp.business_unit === 'Growth' ? '#065f46' :
-                emp.business_unit === 'Sales' ? '#5b21b6' : emp.business_unit === 'Operations' ? '#9f1239' :
-                emp.business_unit === 'Executive' ? '#92400e' : '#334155'
-              ),
-            }}>{emp.department}</span>
+          {!isVirtualNode && (
+            <span 
+              onClick={(e) => {
+                if (props.onDepartmentClick && position.department) {
+                  e.stopPropagation();
+                  props.onDepartmentClick(position.department);
+                }
+              }}
+              className="inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors"
+            >
+              {position.department}
+            </span>
+          )}
+          {!isVirtualNode && position.sub_function && (
+            <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
+              {position.sub_function}
+            </span>
           )}
         </div>
-
-        {/* Show CTC for active employees (with toggle) OR always show budgeted CTC for vacant positions */}
-        {emp.employment_status === 'Inactive' && emp.ctc_annual > 0 && (
-          <div 
-            className={isPrint ? "mt-1.5 text-[10px] font-black" : "mt-1.5 text-[10px] font-black truncate"}
-            style={{ color: '#f59e0b', lineHeight: isPrint ? '1.4' : undefined }}
-          >
-            Budget: {fmtCTC(emp.ctc_annual)}
-          </div>
-        )}
-        {props.canCTC && props.showCTC && emp.employment_status !== 'Inactive' && !isVirtualNode && (
-          <div 
-            className={isPrint ? "mt-1.5 text-[10px] font-black" : "mt-1.5 text-[10px] font-black truncate"}
-            style={{ color: '#059669', lineHeight: isPrint ? '1.4' : undefined, overflow: isPrint ? 'visible' : undefined, whiteSpace: isPrint ? 'normal' : undefined }}
-          >
-            CTC: {fmtCTC(emp.ctc_annual)}
-          </div>
-        )}
-
-        {isNewEmployee && (
-          <div className="absolute -top-3 -right-3 z-20">
-            <span className="flex items-center gap-1 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white text-[9px] px-2 py-0.5 rounded shadow-sm uppercase font-black tracking-widest border border-emerald-300">
-              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> New
-            </span>
-          </div>
-        )}
-        {emp.employment_status === 'Under Notice Period' && emp.notice_start_date && (
-          <div
-            className={isPrint ? "mt-1 text-[9px] font-bold" : "mt-1 text-[9px] font-bold truncate"}
-            style={{ color: '#d97706', lineHeight: isPrint ? '1.4' : undefined, overflow: isPrint ? 'visible' : undefined, whiteSpace: isPrint ? 'normal' : undefined }}
-          >
-            Notice: {90 - Math.floor((new Date().getTime() - new Date(emp.notice_start_date).getTime()) / (1000 * 3600 * 24))} Days Left
-          </div>
-        )}
       </div>
+
+      {/* Occupants */}
+      {isVacant ? (
+        <div className="flex items-center gap-3 mt-2 p-2 rounded-lg bg-slate-50 border border-slate-100 border-dashed">
+          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center border-2 border-white shadow-sm shrink-0">
+            <Users className="w-4 h-4 text-slate-400" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400">Vacant Position</p>
+            {props.canCTC && props.showCTC && position.budgeted_ctc ? (
+              <p className="text-[10px] font-black text-amber-500 mt-0.5">Budget: {fmtCTC(position.budgeted_ctc)}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {occupants.map(emp => {
+            // Legitimize NEW badge: only 30 days, ignore invalid or default dates
+            const isNewEmployee = (() => {
+              if (!emp.join_date) return false;
+              const joinTs = new Date(emp.join_date).getTime();
+              const nowTs = new Date().getTime();
+              // check if valid and in the past 30 days
+              if (isNaN(joinTs) || joinTs > nowTs) return false;
+              return (nowTs - joinTs) <= (30 * 24 * 3600 * 1000);
+            })();
+
+            return (
+              <div 
+                key={emp.id}
+                draggable={!isVirtualNode}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', emp.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.stopPropagation();
+                  
+                  // Track source position for trail line
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  if (props.dragSourceRef) {
+                    props.dragSourceRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                  }
+                  props.setDraggingEmpId?.(emp.id);
+                  
+                  // Custom drag ghost
+                  const ghost = document.createElement('div');
+                  ghost.style.cssText = 'position:fixed;top:-1000px;left:-1000px;padding:8px 16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:12px;font-size:12px;font-weight:800;font-family:Inter,sans-serif;box-shadow:0 8px 24px rgba(99,102,241,0.4);pointer-events:none;white-space:nowrap;z-index:99999;';
+                  ghost.textContent = `↕ ${emp.full_name}`;
+                  document.body.appendChild(ghost);
+                  e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
+                  setTimeout(() => document.body.removeChild(ghost), 0);
+                }}
+                onDragEnd={() => {
+                  props.setDraggingEmpId?.(null);
+                  props.setDragOverNodeId?.(null);
+                  if (props.dragSourceRef) props.dragSourceRef.current = null;
+                }}
+                onClick={(e) => { if(!isVirtualNode) { e.stopPropagation(); selectEmp(emp); } }}
+                onMouseDown={(e) => { if (!isVirtualNode) e.stopPropagation(); }}
+                onPointerDown={(e) => { if (!isVirtualNode) e.stopPropagation(); }}
+                className={[
+                  'flex items-center gap-3 p-1.5 rounded-xl transition-all duration-200',
+                  !isVirtualNode ? 'drag-emp-card' : '',
+                  selected?.id === emp.id ? 'bg-indigo-50/50' : 'hover:bg-slate-50',
+                  props.draggingEmpId === emp.id ? 'dragging-source' : '',
+                ].join(' ')}
+              >
+                <div className="relative shrink-0">
+                  <img src={emp.photo_url || DEFAULT_AVATAR} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
+                  {isNewEmployee && (
+                    <span className="absolute -top-1 -right-1 z-20">
+                      <span className="flex items-center justify-center bg-emerald-500 text-white text-[7px] w-4 h-4 rounded-full border border-white font-extrabold" title="New Joiner">
+                        N
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-[13px] text-slate-900 truncate">{emp.full_name}</p>
+                  <p className="text-[10px] font-semibold text-slate-500 truncate">{emp.designation}</p>
+                  {props.canCTC && props.showCTC && (
+                    <p className="text-[9px] font-black text-emerald-600 mt-0.5">CTC: {fmtCTC(emp.ctc_annual)}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* "Under" drop zone for creating a new position reporting to this one */}
+      {!isVirtualNode && (
+        <div 
+          className="absolute -bottom-4 left-0 right-0 h-4 flex items-center justify-center opacity-0 hover:opacity-100 z-30 transition-opacity"
+          onDragOver={(e) => {
+            if (isDraggingAny) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation(); // prevent bubbling to card drop
+            const empId = e.dataTransfer.getData('text/plain');
+            if (empId && props.onMoveEmployee) {
+              props.onMoveEmployee(empId, position, position.id, 'under');
+            }
+          }}
+        >
+          <div className="w-1/2 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+        </div>
+      )}
     </div>
   );
 
   if (isMindmap) {
     return (
       <div className={`flex items-center ${opacityClass}`}>
-        {/* ── Node Card & Expand/Collapse Button ── */}
         <div className="relative group shrink-0">
           {cardContent}
-
-          {/* Expand/Collapse Button on the right edge */}
           {!isPrint && children.length > 0 && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); toggleNode(emp.id); }}
-              className="absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 shadow-sm z-10 transition-colors"
-            >
+            <button onClick={(e) => { e.stopPropagation(); toggleNode(position.id); }} className="absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-indigo-600 shadow-sm z-10 transition-colors">
               {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              {!isExpanded && (
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full border border-white">
-                  {children.length}
-                </span>
-              )}
+              {!isExpanded && <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-[8px] px-1 rounded-full">{children.length}</span>}
             </button>
           )}
         </div>
-
-        {/* ── Children Sub-tree (horizontal extension) ── */}
-        {/* When isPrint=true, always show ALL children regardless of expandedNodes */}
         {(isPrint || isExpanded) && children.length > 0 && (
           <div className="flex items-center">
-            {/* Horizontal line extending from parent card to the children block */}
-            <div 
-              className={isPrint ? '' : 'w-8 h-0.5 bg-slate-300/70 shrink-0'} 
-              style={isPrint ? { width: '32px', height: '2px', backgroundColor: '#cbd5e1', flexShrink: 0 } : undefined}
-            />
-            
-            {/* Vertical stack of children */}
-            <div 
-              className={isPrint ? '' : 'flex flex-col gap-6 relative border-l-2 border-slate-300/70 pl-6 py-2'}
-              style={isPrint ? {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '24px',
-                position: 'relative',
-                borderLeft: '2px solid #cbd5e1',
-                paddingLeft: '24px',
-                paddingTop: '8px',
-                paddingBottom: '8px'
-              } : undefined}
-            >
+            <div className={isPrint ? '' : 'w-8 h-0.5 bg-slate-300/70 shrink-0'} style={isPrint ? { width: '32px', height: '2px', backgroundColor: '#cbd5e1', flexShrink: 0 } : undefined} />
+            <div className={isPrint ? '' : 'flex flex-col gap-6 relative border-l-2 border-slate-300/70 pl-6 py-2 animate-thread-v'} style={isPrint ? { display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative', borderLeft: '2px solid #cbd5e1', paddingLeft: '24px', paddingTop: '8px', paddingBottom: '8px' } : undefined}>
               {children.map((child) => (
-                <div key={child.id} className="flex items-center relative">
-                  {/* Small horizontal connecting line from the vertical left border to the child node */}
-                  <div 
-                    className={isPrint ? '' : 'absolute -left-6 w-6 h-0.5 bg-slate-300/70'} 
-                    style={isPrint ? {
-                      position: 'absolute',
-                      left: '-24px',
-                      width: '24px',
-                      height: '2px',
-                      backgroundColor: '#cbd5e1'
-                    } : undefined}
-                  />
-                  
-                  <OrgTreeNode {...props} emp={child} />
+                <div key={child.position.id} className="flex items-center relative">
+                  <div className={isPrint ? '' : 'absolute -left-6 w-6 h-0.5 bg-slate-300/70 animate-thread-h'} style={isPrint ? { position: 'absolute', left: '-24px', width: '24px', height: '2px', backgroundColor: '#cbd5e1' } : undefined} />
+                  <OrgTreeNode {...props} node={child} />
                 </div>
               ))}
             </div>
@@ -1168,97 +1358,29 @@ const OrgTreeNode: React.FC<TreeSharedProps & { emp: Employee }> = (props) => {
     );
   }
 
-  // Otherwise: Vertical Tree Layout
   return (
     <div className={`flex flex-col items-center ${opacityClass}`}>
-      {/* ── Node Card & Expand/Collapse Button ── */}
       <div className="relative group">
         {cardContent}
-
-        {/* Expand/Collapse Button at the bottom edge */}
         {!isPrint && children.length > 0 && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); toggleNode(emp.id); }}
-            className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 w-7 h-7 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 shadow-sm z-10 transition-colors"
-          >
+          <button onClick={(e) => { e.stopPropagation(); toggleNode(position.id); }} className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 w-7 h-7 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-indigo-600 shadow-sm z-10 transition-colors">
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {!isExpanded && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full border border-white">
-                {children.length}
-              </span>
-            )}
+            {!isExpanded && <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-[8px] px-1 rounded-full">{children.length}</span>}
           </button>
         )}
       </div>
-
-      {/* ── Children Sub-tree ── */}
-      {/* When isPrint=true, always show ALL children regardless of expandedNodes */}
-      <div
-        className={
-          isPrint
-            ? 'flex flex-col items-center'
-            : `flex flex-col items-center transition-all duration-500 origin-top ${
-                isExpanded
-                  ? 'opacity-100 scale-y-100 max-h-[10000px]'
-                  : 'opacity-0 scale-y-0 max-h-0 overflow-hidden'
-              }`
-        }
-      >
+      <div className={isPrint ? 'flex flex-col items-center' : `flex flex-col items-center transition-all duration-500 origin-top ${isExpanded ? 'opacity-100 scale-y-100 max-h-[10000px]' : 'opacity-0 scale-y-0 max-h-0 overflow-hidden'}`}>
         {children.length > 0 && (
           <>
-            {/* Vertical drop from parent */}
-            <div 
-              className={isPrint ? '' : 'w-0.5 h-8 bg-slate-300/70 rounded-full mt-2'} 
-              style={isPrint ? {
-                width: '2px',
-                height: '32px',
-                backgroundColor: '#cbd5e1',
-                borderRadius: '9999px',
-                marginTop: '8px'
-              } : undefined}
-            />
-
-            {/* Horizontal distributor and children */}
+            <div className={isPrint ? '' : 'w-0.5 h-8 bg-slate-300/70 rounded-full mt-2 animate-thread-v'} style={isPrint ? { width: '2px', height: '32px', backgroundColor: '#cbd5e1', borderRadius: '9999px', marginTop: '8px' } : undefined} />
             <div className="flex items-start">
               {children.map((child, idx) => {
-                const isFirst = idx === 0;
-                const isLast = idx === children.length - 1;
-                const isOnly = children.length === 1;
-                
+                const isFirst = idx === 0, isLast = idx === children.length - 1, isOnly = children.length === 1;
                 return (
-                  <div key={child.id} className="flex flex-col items-center relative" style={{ padding: '0 16px' }}>
-                    {/* Horizontal connecting line */}
-                    {!isOnly && (
-                      <div 
-                        className={isPrint ? '' : 'absolute top-0 h-0.5 bg-slate-300/70'} 
-                        style={isPrint ? {
-                          position: 'absolute',
-                          top: 0,
-                          height: '2px',
-                          backgroundColor: '#cbd5e1',
-                          left: isFirst ? '50%' : 0,
-                          right: isLast ? '50%' : 0,
-                          borderTopLeftRadius: isFirst ? 4 : 0,
-                          borderTopRightRadius: isLast ? 4 : 0,
-                        } : {
-                          left: isFirst ? '50%' : 0,
-                          right: isLast ? '50%' : 0,
-                          borderTopLeftRadius: isFirst ? 4 : 0,
-                          borderTopRightRadius: isLast ? 4 : 0,
-                        }} 
-                      />
-                    )}
-                    {/* Vertical drop to child */}
-                    <div 
-                      className={isPrint ? '' : 'w-0.5 h-8 bg-slate-300/70'} 
-                      style={isPrint ? {
-                        width: '2px',
-                        height: '32px',
-                        backgroundColor: '#cbd5e1'
-                      } : undefined}
-                    />
-                    
-                    <OrgTreeNode {...props} emp={child} />
+                  <div key={child.position.id} className="flex flex-col items-center relative" style={{ padding: '0 16px' }}>
+                    {!isOnly && <div className={isPrint ? '' : 'absolute top-0 h-0.5 bg-slate-300/70 animate-thread-h'} style={{ position: 'absolute', top: 0, height: '2px', backgroundColor: '#cbd5e1', left: isFirst ? '50%' : 0, right: isLast ? '50%' : 0, borderTopLeftRadius: isFirst ? 4 : 0, borderTopRightRadius: isLast ? 4 : 0 }} />}
+                    <div className={isPrint ? '' : 'w-0.5 h-8 bg-slate-300/70 animate-thread-v'} style={isPrint ? { width: '2px', height: '32px', backgroundColor: '#cbd5e1' } : undefined} />
+                    <OrgTreeNode {...props} node={child} />
                   </div>
                 );
               })}

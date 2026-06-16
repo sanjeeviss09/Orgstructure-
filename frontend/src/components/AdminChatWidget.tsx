@@ -4,26 +4,25 @@ import {
   fetchCounsellingSessions, createCounsellingSession, 
   sendCounsellingMessage
 } from '../lib/api';
-import { MessageSquare, Send, X, MessageCircle } from 'lucide-react';
+import { MessageSquare, Send, X } from 'lucide-react';
 
 interface AdminChatWidgetProps {
   user: AuthUser;
   employees: Employee[];
+  onClose?: () => void;
 }
 
-export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employees }) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employees, onClose }) => {
   const [sessions, setSessions] = useState<CounsellingSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [adminReplyText, setAdminReplyText] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const pollingRef = useRef<number | null>(null);
 
   const myEmpId = user.employee_id || user.id;
-  const isAdmin = user.role === 'Admin' || user.role === 'Management';
+  const isAdmin = user.role === 'Admin';
 
   // Fetch support sessions
   const loadSessions = async () => {
@@ -31,30 +30,16 @@ export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employee
       // If employee, fetch only their own sessions. If admin, fetch all.
       const res = await fetchCounsellingSessions(!isAdmin ? myEmpId : undefined);
       setSessions(res);
-
-      // Simple unread calculation (if employee, count messages sent by someone else than employee; if admin, count messages from employee)
-      let count = 0;
-      res.forEach(s => {
-        if (s.messages.length > 0) {
-          const lastMsg = s.messages[s.messages.length - 1];
-          if (!isAdmin) {
-            if (lastMsg.sender_id !== myEmpId) count = 1;
-          } else {
-            if (lastMsg.sender_id === s.employee_id) count += 1;
-          }
-        }
-      });
-      setUnreadCount(count);
     } catch (e) {
       console.error('Error fetching chat sessions', e);
     }
   };
 
-  // Poll for messages when open or periodically when closed (slower)
+  // Poll for messages periodically
   useEffect(() => {
     loadSessions();
     
-    const interval = isOpen ? 3000 : 10000;
+    const interval = 3000;
     pollingRef.current = window.setInterval(() => {
       loadSessions();
     }, interval);
@@ -62,14 +47,12 @@ export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employee
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [isOpen, user]);
+  }, [user]);
 
   // Scroll to bottom helper
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [sessions, isOpen, selectedSessionId]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [sessions, selectedSessionId]);
 
   const handleSendEmployeeMessage = async () => {
     if (!messageText.trim()) return;
@@ -115,57 +98,46 @@ export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employee
     : sessions[0];
 
   return (
-    <>
-      {/* Floating Chat Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 z-50 cursor-pointer active:scale-95 ${
-          isOpen 
-            ? 'bg-slate-900 text-white hover:bg-slate-800' 
-            : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-1 shadow-indigo-300/40'
-        }`}
-        title="Admin Support Chat"
-      >
-        {isOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
-        {!isOpen && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-bounce">
-            {unreadCount}
-          </span>
-        )}
-      </button>
-
-      {/* Chat Drawer Window */}
-      {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[380px] h-[550px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-8rem)] bg-white border border-slate-200/80 shadow-2xl rounded-2xl flex flex-col z-50 overflow-hidden pop-in">
-          
-          {/* Header */}
-          <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md">
-                <MessageSquare className="w-4.5 h-4.5 text-white" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm leading-tight">
-                  {!isAdmin ? 'Confidential Admin Support' : (selectedSessionId ? getEmployeeName(currentSession?.employee_id || '') : 'Admin Support Inbox')}
-                </h3>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  {!isAdmin ? 'Secure line to HR & Admin' : (selectedSessionId ? getEmployeeDesignation(currentSession?.employee_id || '') : `${sessions.length} active chats`)}
-                </p>
-              </div>
-            </div>
-            
-            {isAdmin && selectedSessionId && (
-              <button 
-                onClick={() => setSelectedSessionId(null)}
-                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors px-2 py-1 rounded bg-white/10"
-              >
-                Back
-              </button>
-            )}
+    <div className="w-full h-full bg-white flex flex-col z-50 overflow-hidden">
+      {/* Header */}
+      <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md">
+            <MessageSquare className="w-4.5 h-4.5 text-white" />
           </div>
+          <div>
+            <h3 className="font-bold text-sm leading-tight">
+              {!isAdmin ? 'Confidential Admin Support' : (selectedSessionId ? getEmployeeName(currentSession?.employee_id || '') : 'Admin Support Inbox')}
+            </h3>
+            <p className="text-[10px] text-slate-400 font-medium">
+              {!isAdmin ? 'Secure line to HR & Admin' : (selectedSessionId ? getEmployeeDesignation(currentSession?.employee_id || '') : `${sessions.length} active chats`)}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {isAdmin && selectedSessionId && (
+            <button 
+              onClick={() => setSelectedSessionId(null)}
+              className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors px-2 py-1 rounded bg-white/10"
+            >
+              Back
+            </button>
+          )}
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white"
+              title="Close chat"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </div>
 
-          {/* Body Content */}
-          <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col">
+      {/* Body Content */}
+      <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col">
             
             {/* 1. EMPLOYEE VIEW: Direct Thread to Admin */}
             {!isAdmin && (
@@ -321,8 +293,6 @@ export const AdminChatWidget: React.FC<AdminChatWidgetProps> = ({ user, employee
               </div>
             )}
           </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 };
