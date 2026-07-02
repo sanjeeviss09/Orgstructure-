@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Employee, DEFAULT_AVATAR } from '../lib/api';
-import { ArrowLeft, Mail, Building2, Tag, ChevronRight, UserCheck } from 'lucide-react';
+import { ArrowLeft, Mail, Building2, Tag, ChevronRight, UserCheck, FileText, Printer } from 'lucide-react';
+import { GeneratedDocument, getEmployeeDocuments } from '../lib/template_api';
 
 interface EmployeeDetailsProps {
   employeeId: string;
@@ -16,6 +17,14 @@ const fmtCTC = (n: number) => {
 
 export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({ employeeId, employees, onBack, onSelectEmployee }) => {
   const employee = useMemo(() => employees.find(e => e.id === employeeId), [employees, employeeId]);
+  
+  const [documents, setDocuments] = React.useState<GeneratedDocument[]>([]);
+
+  React.useEffect(() => {
+    if (employeeId) {
+      getEmployeeDocuments(employeeId).then(setDocuments).catch(console.error);
+    }
+  }, [employeeId]);
   
   if (!employee) {
     return (
@@ -175,6 +184,49 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({ employeeId, em
                           </p>
                         )}
                         {evt.notes && <p className="text-[10px] italic text-slate-500 mt-1">{evt.notes}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Documents Section */}
+            {documents.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  Document History
+                </h3>
+                <div className="space-y-3">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-indigo-200 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600 mt-0.5">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800">{doc.document_name}</h4>
+                          <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                            Generated on {new Date(doc.generated_at).toLocaleDateString()} by {doc.generated_by}
+                          </p>
+                          <span className="inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">v{doc.version}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(doc.html_content);
+                              printWindow.document.close();
+                              setTimeout(() => printWindow.print(), 500);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+                        >
+                          <Printer className="w-3.5 h-3.5" /> View / Print
+                        </button>
                       </div>
                     </div>
                   ))}

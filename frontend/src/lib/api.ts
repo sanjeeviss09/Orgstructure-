@@ -227,6 +227,39 @@ export const login = async (username: string, password: string): Promise<AuthUse
   return data.user;
 };
 
+export const register = async (username: string, password: string, full_name: string): Promise<AuthUser> => {
+  const res = await fetch(API_BASE + '/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, full_name })
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Registration failed');
+  }
+  const data = await res.json();
+  return data.user;
+};
+
+export const updateUserRole = async (userId: string, role: string): Promise<AuthUser> => {
+  const res = await fetch(API_BASE + `/api/auth/users/${userId}/role`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role })
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update role');
+  }
+  const data = await res.json();
+  return data.user;
+};
+
+export const fetchUsers = async (): Promise<AuthUser[]> => {
+  const res = await fetch(API_BASE + '/api/auth/users');
+  if (!res.ok) throw new Error('Failed to fetch users');
+  return res.json();
+};
+
 // ─── EMPLOYEES ────────────────────────────────────────────────────────
 export const fetchEmployees = async (retries = 3): Promise<Employee[]> => {
   try {
@@ -1039,3 +1072,51 @@ export const fetchUserEngagement = async (): Promise<UserEngagement[]> => {
   return res.json();
 };
 
+// ─── KNOWLEDGE BASE API ────────────────────────────────────────────────────────
+
+export interface KnowledgeDocument {
+  id: string;
+  filename: string;
+  type: string;
+  size: number;
+  uploadDate: string;
+  status: 'Processing' | 'Active' | 'Failed';
+  contentSnippet?: string;
+}
+
+export const fetchKnowledgeDocuments = async (): Promise<KnowledgeDocument[]> => {
+  const res = await fetch(`${API_BASE}/api/knowledge`);
+  if (!res.ok) throw new Error('Failed to fetch knowledge documents');
+  return res.json();
+};
+
+export const uploadKnowledgeDocument = async (file: File): Promise<KnowledgeDocument> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/knowledge/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            type: file.type || file.name.split('.').pop() || 'unknown',
+            size: file.size,
+            contentBase64: reader.result
+          })
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        resolve(await res.json());
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
+export const deleteKnowledgeDocument = async (id: string): Promise<void> => {
+  const res = await fetch(`${API_BASE}/api/knowledge/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete document');
+};

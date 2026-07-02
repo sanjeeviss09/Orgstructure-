@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { Employee, createEmployee, updateEmployee, deleteEmployee, bulkDeleteEmployees, bulkImportEmployees, DEFAULT_AVATAR } from '../lib/api';
+import { Employee, createEmployee, updateEmployee, deleteEmployee, bulkDeleteEmployees, bulkImportEmployees, DEFAULT_AVATAR, fetchUsers, updateUserRole, AuthUser } from '../lib/api';
 import { STATUS_CONFIG } from './OrgChart';
 import { ConfirmDialog, AlertDialog } from './Dialogs';
 import { Plus, Edit2, Trash2, Mail, Building2, Tag, Upload, Download, CheckCircle, AlertCircle, X, Search, ChevronDown } from 'lucide-react';
@@ -948,6 +948,13 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
   const [subFuncFilter, setSubFuncFilter] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<AuthUser[]>([]);
+
+  React.useEffect(() => {
+    if (activeRole === 'Admin') {
+      fetchUsers().then(setUsers).catch(console.error);
+    }
+  }, [employees, activeRole]);
 
   const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void, isDestructive?: boolean, confirmText?: string}>({isOpen: false, title: '', message: '', onConfirm: () => {}});
   const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title: string, message: string}>({isOpen: false, title: '', message: ''});
@@ -1204,6 +1211,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                 <th className="px-5 py-3.5">Department / Sub Function / Role</th>
                 <th className="px-5 py-3.5">Status</th>
                 <th className="px-5 py-3.5">Tier</th>
+                {canEdit && <th className="px-5 py-3.5">System Role</th>}
                 {canViewCTC && <th className="px-5 py-3.5">Budget</th>}
                 {canViewCTC && <th className="px-5 py-3.5">Actual CTC</th>}
                 {canEdit && <th className="px-5 py-3.5 text-right">Actions</th>}
@@ -1319,14 +1327,9 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                         </select>
                       </div>
                     ) : (
-                      (() => {
-                        const sc = STATUS_CONFIG[emp.employment_status] || STATUS_CONFIG['Active'];
-                        return (
-                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black border ${sc.bg} ${sc.text} ${sc.border}`} title={sc.label} style={{ boxShadow: `0 0 6px ${sc.glow}40` }}>
-                            <span>{sc.letter}</span>
-                          </span>
-                        );
-                      })()
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border bg-slate-50 text-slate-600 border-slate-200">
+                        {emp.employment_status}
+                      </span>
                     )}
                     {emp.employment_status === 'Under Notice Period' && emp.notice_start_date && (
                       <div className="text-[9px] font-bold text-amber-600 mt-1 pl-1">
@@ -1337,6 +1340,33 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
                   <td className="px-5 py-3.5">
                     <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200/50">T{emp.role_tier}</span>
                   </td>
+                  {canEdit && (
+                    <td className="px-5 py-3.5">
+                      {(() => {
+                        const empUser = users.find(u => u.employee_id === emp.id);
+                        if (!empUser) {
+                          return <span className="text-xs text-slate-400 italic font-medium">No Account</span>;
+                        }
+                        return (
+                          <select
+                            value={empUser.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value;
+                              try {
+                                await updateUserRole(empUser.id, newRole);
+                                fetchUsers().then(setUsers);
+                              } catch (err) {
+                                setAlertDialog({ isOpen: true, title: 'Error', message: 'Failed to update user role.' });
+                              }
+                            }}
+                            className="appearance-none inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold border cursor-pointer outline-none transition-all border-slate-200 bg-white hover:bg-slate-50 shadow-sm"
+                          >
+                            {['Admin', 'Management', 'HOD', 'Manager', 'Employee', 'Intern'].map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        );
+                      })()}
+                    </td>
+                  )}
                   {canViewCTC && (
                     <>
                       <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-500">

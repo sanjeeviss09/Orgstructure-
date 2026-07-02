@@ -165,7 +165,7 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({ rowData, onClose
                       </div>
                       <div className="flex items-center justify-between text-slate-600">
                         <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Exp. CTC</span>
-                        <span className="font-medium">₹{(cand.expected_ctc || 0).toLocaleString()}</span>
+                        <span className="font-medium">₹{(cand.expected_ctc || 0).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
                   </div>

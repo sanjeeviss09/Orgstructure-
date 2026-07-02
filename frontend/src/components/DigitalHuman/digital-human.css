@@ -1,0 +1,231 @@
+/* ══════════════════════════════════════════════════════════════
+   AIRA - Enterprise Digital Human Companion — v2
+   Pure CSS animations. Drag-safe (animations pause on drag).
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Zone ─────────────────────────────────────────── */
+.dh-zone {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  width: 160px;
+  touch-action: none;
+}
+.dh-zone * { pointer-events: auto; }
+
+/* ── Entrance ─────────────────────────────────────── */
+@keyframes dh-entrance {
+  0%   { opacity: 0; transform: translateY(60px) scale(0.7); }
+  55%  { opacity: 1; transform: translateY(-10px) scale(1.04); }
+  75%  { transform: translateY(4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dh-entrance { animation: dh-entrance 1s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* ── DRAG FREEZE — All animations off when dragging ── */
+.dh-dragging .dh-body-group,
+.dh-dragging .dh-head-group,
+.dh-dragging .dh-arm-left,
+.dh-dragging .dh-arm-right,
+.dh-dragging .dh-eye,
+.dh-dragging .dh-eye-r,
+.dh-dragging .dh-pupils-group,
+.dh-dragging .dh-mouth,
+.dh-dragging .dh-hair-group,
+.dh-dragging .dh-legs-group {
+  animation: none !important;
+  transition: none !important;
+}
+/* While dragging, show a "grabbed" lean */
+.dh-dragging .dh-avatar-inner {
+  transform: rotate(-8deg) scale(1.06) !important;
+  transition: transform 0.1s ease !important;
+  filter: drop-shadow(0 12px 24px rgba(99,102,241,0.5)) !important;
+}
+
+/* ── Idle Breathing ──────────────────────────────── */
+@keyframes dh-breathe {
+  0%,100% { transform: scaleY(1) translateY(0); }
+  50%     { transform: scaleY(1.018) translateY(-2px); }
+}
+.dh-body-group { transform-origin: bottom center; animation: dh-breathe 3.8s ease-in-out infinite; }
+
+/* ── Head Bobble ────────────────────────────────── */
+@keyframes dh-bobble {
+  0%,100% { transform: translateY(0) rotate(0deg); }
+  25%     { transform: translateY(-2px) rotate(0.8deg); }
+  75%     { transform: translateY(-1px) rotate(-0.5deg); }
+}
+.dh-head-group { transform-origin: bottom center; animation: dh-bobble 3.8s ease-in-out infinite; }
+
+/* ── Blink ─────────────────────────────────────── */
+@keyframes dh-blink {
+  0%,91%,100% { transform: scaleY(1); }
+  94%          { transform: scaleY(0.06); }
+}
+.dh-eye   { transform-origin: center; animation: dh-blink 4.5s ease-in-out infinite; }
+.dh-eye-r { animation-delay: 0.08s; }
+
+/* ── Look Around ────────────────────────────────── */
+@keyframes dh-look {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(-4px); }
+  38%  { transform: translateX(4px); }
+  58%  { transform: translateX(-1px); }
+  100% { transform: translateX(0); }
+}
+.dh-pupils-group { animation: dh-look 8s ease-in-out infinite; }
+
+/* ── Idle arm sway ─────────────────────────────── */
+@keyframes dh-arm-l { 0%,100%{transform:rotate(0deg);}50%{transform:rotate(-5deg);} }
+@keyframes dh-arm-r { 0%,100%{transform:rotate(0deg);}50%{transform:rotate(5deg);} }
+.dh-arm-left  { transform-origin: top right; animation: dh-arm-l 3.8s ease-in-out infinite; }
+.dh-arm-right { transform-origin: top left;  animation: dh-arm-r 3.8s ease-in-out infinite; }
+
+/* ── Talking mouth ─────────────────────────────── */
+@keyframes dh-talk {
+  0%,100%{transform:scaleY(1);}
+  20%{transform:scaleY(2) translateY(1px);}
+  40%{transform:scaleY(0.5);}
+  60%{transform:scaleY(2.2) translateY(1.5px);}
+  80%{transform:scaleY(0.7);}
+}
+.dh-mouth { transform-origin: center; }
+.dh-state-talking .dh-mouth { animation: dh-talk 0.38s ease-in-out infinite; }
+
+/* ── Greeting / Wave ────────────────────────────── */
+@keyframes dh-wave {
+  0%   {transform:rotate(0deg);}
+  10%  {transform:rotate(-35deg);}
+  25%  {transform:rotate(15deg);}
+  40%  {transform:rotate(-30deg);}
+  55%  {transform:rotate(10deg);}
+  70%  {transform:rotate(-20deg);}
+  85%  {transform:rotate(5deg);}
+  100% {transform:rotate(0deg);}
+}
+.dh-state-greeting .dh-arm-right { animation: dh-wave 1.1s ease-in-out 3 !important; }
+
+/* ── Pointing ────────────────────────────────────── */
+@keyframes dh-point {
+  0%,100%{transform:rotate(0deg);}
+  35%{transform:rotate(-65deg) translateY(-5px);}
+  65%{transform:rotate(-60deg) translateY(-5px);}
+}
+.dh-state-pointing .dh-arm-right { animation: dh-point 1.4s ease-in-out 3 !important; }
+
+/* ── Thinking ───────────────────────────────────── */
+@keyframes dh-think-head { 0%,100%{transform:rotate(0deg) translateY(0);}50%{transform:rotate(-10deg) translateY(-3px);} }
+@keyframes dh-think-arm  { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(-50deg) translateX(3px);} }
+.dh-state-thinking .dh-head-group { animation: dh-think-head 2.4s ease-in-out infinite; }
+.dh-state-thinking .dh-arm-right  { animation: dh-think-arm  2.4s ease-in-out infinite !important; }
+
+/* ── Celebrating ────────────────────────────────── */
+@keyframes dh-cel-body { 0%,100%{transform:translateY(0);}30%{transform:translateY(-10px);}60%{transform:translateY(-5px);} }
+@keyframes dh-cel-l    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(50deg);} }
+@keyframes dh-cel-r    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(-50deg);} }
+.dh-state-celebrating .dh-body-group { animation: dh-cel-body 0.65s ease-in-out infinite; }
+.dh-state-celebrating .dh-arm-left   { animation: dh-cel-l   0.65s ease-in-out infinite !important; }
+.dh-state-celebrating .dh-arm-right  { animation: dh-cel-r   0.65s ease-in-out infinite !important; }
+
+/* ── Stretching ─────────────────────────────────── */
+@keyframes dh-stretch-body { 0%,100%{transform:scaleY(1);}40%{transform:scaleY(1.08) translateY(-4px);}70%{transform:scaleY(0.95) translateY(2px);} }
+@keyframes dh-stretch-l    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(70deg);} }
+@keyframes dh-stretch-r    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(-70deg);} }
+.dh-state-stretching .dh-body-group { animation: dh-stretch-body 2s ease-in-out 2; }
+.dh-state-stretching .dh-arm-left   { animation: dh-stretch-l   2s ease-in-out 2 !important; }
+.dh-state-stretching .dh-arm-right  { animation: dh-stretch-r   2s ease-in-out 2 !important; }
+
+/* ── Reading tablet ─────────────────────────────── */
+@keyframes dh-read-head { 0%,100%{transform:translateY(0) rotate(0deg);}50%{transform:translateY(5px) rotate(-15deg);} }
+@keyframes dh-read-arm  { 0%,100%{transform:rotate(0deg);}50%{transform:rotate(-30deg) translateX(-2px);} }
+.dh-state-reading .dh-head-group  { animation: dh-read-head 3s ease-in-out infinite; }
+.dh-state-reading .dh-arm-right   { animation: dh-read-arm  3s ease-in-out infinite !important; }
+.dh-state-reading .dh-arm-left    { animation: dh-read-arm  3s ease-in-out infinite 0.3s !important; }
+
+/* ── Dancing ─────────────────────────────────────── */
+@keyframes dh-dance-body { 0%,100%{transform:translateX(0) rotate(0deg);}25%{transform:translateX(-4px) rotate(-3deg);}75%{transform:translateX(4px) rotate(3deg);} }
+@keyframes dh-dance-l    { 0%,100%{transform:rotate(-10deg);}50%{transform:rotate(20deg);} }
+@keyframes dh-dance-r    { 0%,100%{transform:rotate(10deg);}50%{transform:rotate(-20deg);} }
+@keyframes dh-dance-head { 0%,100%{transform:rotate(-5deg);}50%{transform:rotate(5deg);} }
+.dh-state-dancing .dh-body-group { animation: dh-dance-body 0.8s ease-in-out infinite; }
+.dh-state-dancing .dh-head-group { animation: dh-dance-head 0.8s ease-in-out infinite; }
+.dh-state-dancing .dh-arm-left   { animation: dh-dance-l   0.8s ease-in-out infinite !important; }
+.dh-state-dancing .dh-arm-right  { animation: dh-dance-r   0.8s ease-in-out infinite !important; }
+
+/* ── Shrug (confused) ───────────────────────────── */
+@keyframes dh-shrug-head { 0%,100%{transform:rotate(0deg);}30%{transform:rotate(10deg);}70%{transform:rotate(-10deg);} }
+@keyframes dh-shrug-l    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(-40deg) translateY(-4px);} }
+@keyframes dh-shrug-r    { 0%,100%{transform:rotate(0deg);}40%{transform:rotate(40deg)  translateY(-4px);} }
+.dh-state-shrugging .dh-head-group { animation: dh-shrug-head 1.6s ease-in-out 2; }
+.dh-state-shrugging .dh-arm-left   { animation: dh-shrug-l   1.6s ease-in-out 2 !important; }
+.dh-state-shrugging .dh-arm-right  { animation: dh-shrug-r   1.6s ease-in-out 2 !important; }
+
+/* ── Speech Bubble ──────────────────────────────── */
+@keyframes dh-bubble-in  { 0%{opacity:0;transform:scale(0.8) translateY(10px);}100%{opacity:1;transform:scale(1) translateY(0);} }
+@keyframes dh-bubble-out { 0%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(0.85) translateY(-6px);} }
+
+.dh-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 230px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px 16px 4px 16px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 30px rgba(99,102,241,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  font-size: 12px;
+  line-height: 1.55;
+  color: #1e293b;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  animation: dh-bubble-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  z-index: 10;
+  pointer-events: none;
+}
+.dh-bubble.exiting { animation: dh-bubble-out 0.25s ease-in forwards; }
+.dh-bubble-name { font-weight: 800; font-size: 11px; color: #6366f1; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.dh-bubble-tail { position: absolute; bottom: -6px; right: 18px; width: 12px; height: 12px; background: white; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; transform: rotate(45deg); border-radius: 0 0 3px 0; }
+
+/* ── Typing dots ─────────────────────────────────── */
+@keyframes dh-dot { 0%,80%,100%{transform:translateY(0);opacity:0.4;}40%{transform:translateY(-6px);opacity:1;} }
+.dh-typing-dots span { display:inline-block;width:6px;height:6px;border-radius:50%;background:#6366f1;margin:0 2px;animation:dh-dot 1.2s ease-in-out infinite; }
+.dh-typing-dots span:nth-child(2){animation-delay:0.2s;}
+.dh-typing-dots span:nth-child(3){animation-delay:0.4s;}
+
+/* ── Chat Panel ──────────────────────────────────── */
+@keyframes dh-panel-in  { 0%{transform:translate(-20px, 20px) scale(0.9);opacity:0;}100%{transform:translate(0, 0) scale(1);opacity:1;} }
+@keyframes dh-panel-out { 0%{transform:translate(0, 0) scale(1);opacity:1;}100%{transform:translate(-20px, 20px) scale(0.9);opacity:0;} }
+
+.dh-chat-panel {
+  position: fixed; bottom: 24px; right: 196px;
+  width: 420px; max-height: 600px; height: 80vh;
+  background: white; border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 60px rgba(99,102,241,0.16), 0 4px 16px rgba(0,0,0,0.08);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: dh-panel-in 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  z-index: 999;
+}
+.dh-chat-panel.closing { animation: dh-panel-out 0.25s ease-in forwards; }
+
+/* ── Status dot ─────────────────────────────────── */
+@keyframes dh-status { 0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.6;transform:scale(1.25);} }
+.dh-status-dot { position:absolute;bottom:10px;right:10px;width:10px;height:10px;border-radius:50%;background:#10b981;border:2px solid white;animation:dh-status 2s ease-in-out infinite; }
+
+/* ── Floating (minimized) ────────────────────────── */
+@keyframes dh-float { 0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);} }
+.dh-minimized-btn { animation: dh-float 3s ease-in-out infinite; }
+
+/* ── Drag cursor ─────────────────────────────────── */
+.dh-avatar-wrap { cursor: grab; }
+.dh-avatar-wrap:active { cursor: grabbing; }
+
+/* ── Smooth transition between positions ─────────── */
+.dh-zone { transition: none; }
+.dh-zone.dh-snap-back { transition: bottom 0.4s cubic-bezier(0.34,1.56,0.64,1), right 0.4s cubic-bezier(0.34,1.56,0.64,1); }

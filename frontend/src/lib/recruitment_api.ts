@@ -9,6 +9,8 @@ export interface JobRequisition {
   location: string;
   reporting_manager_id: string | null;
   position_type: 'New Position' | 'Replacement Position';
+  position_id?: string;
+  replaced_employee_id?: string;
   budgeted_ctc: number;
   grade: string;
   employment_type: string;
@@ -100,7 +102,7 @@ export interface Offer {
   designation: string;
   joining_date: string;
   reporting_manager_id: string;
-  status: 'Pending Recruiter' | 'Pending Budget Exception' | 'Pending HR Head' | 'Pending Dept Head' | 'Pending Final' | 'Offer Sent' | 'Offer Accepted' | 'Offer Declined' | 'Offer Expired' | 'Joined';
+  status: 'Pending Recruiter' | 'Pending Budget Exception' | 'Pending HR Head' | 'Pending Dept Head' | 'Pending Final' | 'Offer Sent' | 'Offer Accepted' | 'Offer Declined' | 'Offer Expired' | 'Joined' | 'Clarification Requested';
   created_at: string;
 }
 
@@ -122,11 +124,12 @@ export const fetchRequisitions = async (): Promise<JobRequisition[]> => {
   return res.json();
 };
 
-export const createRequisition = async (req: Partial<JobRequisition>): Promise<JobRequisition> => {
+export const createRequisition = async (req: Partial<JobRequisition> | FormData): Promise<JobRequisition> => {
+  const isFormData = req instanceof FormData;
   const res = await fetch(API_BASE + '/api/recruitment/requisitions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req)
+    headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+    body: isFormData ? (req as FormData) : JSON.stringify(req)
   });
   return res.json();
 };
@@ -142,6 +145,29 @@ export const updateRequisition = async (id: string, updates: Partial<JobRequisit
 
 export const fetchCandidates = async (): Promise<Candidate[]> => {
   const res = await fetch(API_BASE + '/api/recruitment/candidates');
+  return res.json();
+};
+
+export const uploadResumeSmart = async (file: File): Promise<Candidate> => {
+  const data = new FormData();
+  data.append('resume', file);
+  const res = await fetch(API_BASE + '/api/recruitment/candidates/ai-upload', {
+    method: 'POST',
+    body: data
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to analyze resume');
+  }
+  return res.json();
+};
+
+export const updateCandidateDetails = async (id: string, data: Partial<Candidate>): Promise<Candidate> => {
+  const res = await fetch(API_BASE + `/api/recruitment/candidates/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
   return res.json();
 };
 
@@ -209,6 +235,23 @@ export const createOffer = async (data: Partial<Offer>): Promise<Offer> => {
   return res.json();
 };
 
+export const sendOfferEmail = async (id: string, formData: FormData): Promise<any> => {
+  const res = await fetch(API_BASE + `/api/recruitment/offers/${id}/send-email`, {
+    method: 'POST',
+    body: formData
+  });
+  return res.json();
+};
+
+export const candidateActionOffer = async (id: string, action: string, message?: string): Promise<Offer> => {
+  const res = await fetch(API_BASE + `/api/recruitment/offers/${id}/candidate-action`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, message })
+  });
+  return res.json();
+};
+
 export const approveOffer = async (id: string, role: string, action: string): Promise<Offer> => {
   const res = await fetch(API_BASE + `/api/recruitment/offers/${id}/approve`, {
     method: 'PUT',
@@ -226,6 +269,18 @@ export const submitCandidateApplication = async (formData: FormData): Promise<Ca
   if (!res.ok) {
     const d = await res.json();
     throw new Error(d.error || 'Failed to submit application');
+  }
+  return res.json();
+};
+
+export const submitCandidateAIUpload = async (formData: FormData): Promise<Candidate> => {
+  const res = await fetch(API_BASE + '/api/recruitment/candidates/ai-upload', {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const d = await res.json();
+    throw new Error(d.error || 'Failed to process AI resume upload');
   }
   return res.json();
 };

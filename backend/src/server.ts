@@ -7,10 +7,14 @@ import rateLimit from 'express-rate-limit';
 import {
   getEmployees, getEmployeeById, addEmployee, updateEmployee,
   deleteEmployee, bulkDeleteEmployees, bulkAddEmployees, getUserByUsername, Employee,
-  resetDatabaseData, getPositions, savePositions, addPosition, updatePosition, Position, getOffers
+  resetDatabaseData, getPositions, savePositions, addPosition, updatePosition, deletePosition, Position, getOffers, createUser, updateUserRole, getUsers
 } from './data/database';
 import { internsRouter } from './interns';
 import { recruitmentRouter } from './recruitment';
+import { templatesRouter } from './templates';
+import { opbieRouter } from './opbie';
+import { knowledgeRouter, getActiveKnowledgeContext } from './knowledge';
+import { getOpbieKnowledge } from './data/database';
 
 dotenv.config();
 
@@ -36,6 +40,15 @@ app.use('/api/interns', internsRouter);
 
 // Mount recruitment router
 app.use('/api/recruitment', recruitmentRouter);
+
+// Mount templates router
+app.use('/api/templates', templatesRouter);
+
+// Mount OPBIE router
+app.use('/api/opbie', opbieRouter);
+
+// Mount Knowledge router
+app.use('/api/knowledge', knowledgeRouter);
 
 // Serve candidate uploads statically
 import fs from 'fs';
@@ -64,6 +77,69 @@ app.post('/api/auth/login', (req, res) => {
   return res.status(401).json({ error: 'Invalid credentials. Please check your username and password.' });
 });
 
+app.get('/api/auth/users', (req, res) => {
+  const users = getUsers().map(u => {
+    const { password, ...safeUser } = u;
+    return safeUser;
+  });
+  return res.json(users);
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, full_name } = req.body;
+  if (!username || !password || !full_name) {
+    return res.status(400).json({ error: 'Username, password, and full name are required' });
+  }
+  try {
+    const empId = `E_${crypto.randomUUID().substring(0, 8)}`;
+    const newEmp = addEmployee({
+      id: empId,
+      emp_id: empId,
+      full_name,
+      company_name: 'Axxel',
+      business_unit: 'General',
+      department: 'General',
+      designation: 'New Employee',
+      role_tier: 5,
+      employment_status: 'Active',
+      email_official: `${username.trim()}@axxel.com`,
+      ctc_annual: 0,
+      ctc_currency: 'INR',
+      budget_allocated: 0,
+      dashboard_access: 'Employee',
+      reporting_to_id: null,
+      photo_url: '',
+      join_date: new Date().toISOString()
+    });
+
+    const newUser = createUser({
+      id: `U_${crypto.randomUUID().substring(0, 8)}`,
+      username: username.trim(),
+      password,
+      full_name,
+      role: 'Employee',
+      employee_id: newEmp.id
+    });
+    const { password: _pw, ...safeUser } = newUser;
+    return res.json({ success: true, user: safeUser });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.put('/api/auth/users/:id/role', (req, res) => {
+  const { role } = req.body;
+  if (!role) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
+  const updatedUser = updateUserRole(req.params.id, role);
+  if (!updatedUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const { password: _pw, ...safeUser } = updatedUser;
+  return res.json({ success: true, user: safeUser });
+});
+
 // ─── SYSTEM MAINTENANCE ────────────────────────────────────────────────────────
 app.post('/api/reset', (req, res) => {
   try {
@@ -71,6 +147,111 @@ app.post('/api/reset', (req, res) => {
     res.json({ success: true, message: 'Database reset to mock state' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
+// ─── AI COMPANION CHAT ─────────────────────────────────────────────────────────
+app.post('/api/ai-companion/chat', async (req, res) => {
+  try {
+    const { message, role, activeTab, context, history = [] } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message required' });
+
+    // Role personality prefix
+    const rolePersonality: Record<string, string> = {
+      Admin:      'You are assisting an Admin who has full platform access.',
+      Management: 'You are assisting a Senior Executive/Management user focused on strategic workforce insights.',
+      HOD:        'You are assisting a Head of Department focused on their team and department metrics.',
+      Manager:    'You are assisting a Team Manager focused on their direct team.',
+      Employee:   'You are assisting an Employee with their personal HR queries.',
+      Intern:     'You are assisting an Intern with their internship queries.'
+    };
+
+    const fullSystemPrompt = `You are Aira, the Enterprise AI Companion built into the ORG Enterprise Intelligence Platform.
+${rolePersonality[role] || rolePersonality['Employee']}
+
+Platform Context: Will be provided in a separate system message.
+Active Company Knowledge Documents: ${getActiveKnowledgeContext()}
+
+Currency: Always use ₹ (Indian Rupee / INR). Never use $ or USD.
+
+## YOUR PERSONA & MISSION:
+- You have full platform access and deep intelligence across all modules.
+- You are highly proactive: whenever possible, offer your own intelligent suggestions, strategic insights, and future planning advice tailored to the user's role.
+- You exist in real-time, working alongside the user as a living digital employee, not just a static bot.
+- You must interact deeply with Managers, HODs, and Employees, motivating them, celebrating their successes, and providing a highly friendly, warm, and engaging feel.
+Currency: Always use ₹ (Indian Rupee / INR). Never use $ or USD.
+
+## CRITICAL RESPONSE RULES — YOU MUST FOLLOW THESE:
+
+1. **NEVER tell the user to navigate, click tabs, or go to a page.** Never say things like "Go to the Reports tab", "Click on Recruitment", "Navigate to the Dashboard". This is FORBIDDEN.
+
+2. **ALWAYS answer the question directly here**, inline in this chat panel. If you have data (employee counts, vacancy numbers, budget figures, candidate counts, etc.) from the Platform Context, use it to answer immediately.
+
+3. **Use markdown formatting for clean presentation:**
+   - Use **bold** for labels and key numbers
+   - Use bullet lists (- item) for lists of items
+   - Use markdown tables (| Col | Col |) for comparative or multi-column data
+   - Use clear paragraph breaks
+
+4. **If seeing the full page/report would give extra value**, add ONE navigation token at the very END of your reply in this exact format:
+   [NAVIGATE:tabname:Button Label]
+   Valid tab names: dashboard, orgchart, directory, recruitment, wellness, reports, templates, targets, manage_interns, user_analytics
+   Example: [NAVIGATE:reports:View Full Reports]
+   Only include ONE navigate token maximum. Never include it in the middle of your response.
+
+5. **Use the context data to give real answers.** If asked about employees, use the active employee count. If asked about vacancies, use the vacant positions number. Extrapolate sensibly.
+
+6. **Budget/CTC**: Always format numbers in Indian format (₹ X,XX,XXX or ₹ X Lakh).
+
+7. **Be concise but complete.** 3-8 lines is ideal. Use tables when comparing 2+ categories.
+
+8. **Tone**: Warm, professional, confident. You are an expert HR partner.
+
+## OPBIE Enterprise Psychology Knowledge Base:
+You have access to the following organizational behavioral insights and policies. Use these to guide your answers on culture, engagement, leadership, and policies. Do not attempt to guess individual employee truths, instead rely on these organizational trends and guidelines:
+
+${getOpbieKnowledge().map(k => `### ${k.title} (${k.category})\n${k.content}`).join('\n\n')}`;
+
+    // Inject dynamic calculated Attrition Rate
+    const emps = getEmployees();
+    const totalEmps = emps.length;
+    const resignedEmps = emps.filter(e => e.employment_status === 'Resigned on Roll' || e.employment_status === 'Inactive').length;
+    const attritionRate = totalEmps > 0 ? ((resignedEmps / totalEmps) * 100).toFixed(1) + '%' : '0%';
+    const enrichedContext = `${context || 'No context provided.'}\nReal-time Attrition Rate: ${attritionRate} (Total: ${totalEmps}, Left: ${resignedEmps})`;
+
+    const messages = [
+      { role: 'system', content: fullSystemPrompt },
+      { role: 'system', content: `Current Platform Context:\n${enrichedContext}` },
+      ...(history || []).slice(-8),
+      { role: 'user', content: message }
+    ];
+
+    const aiRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({
+        model: 'meta/llama-3.1-8b-instruct',
+        messages,
+        temperature: 0.4,
+        max_tokens: 500
+      })
+    });
+
+    if (!aiRes.ok) {
+      const err = await aiRes.text();
+      console.error('AI Companion error:', err);
+      return res.status(500).json({ error: 'AI service unavailable' });
+    }
+
+    const aiData = await aiRes.json();
+    const reply = aiData.choices?.[0]?.message?.content?.trim() || "I'm not sure how to answer that. Could you rephrase?";
+    return res.json({ reply });
+  } catch (err) {
+    console.error('AI Companion chat error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -121,6 +302,19 @@ app.put('/api/positions/:id', (req, res) => {
   const updated = updatePosition(req.params.id, req.body);
   if (updated) res.json(updated);
   else res.status(404).json({ error: 'Position not found' });
+});
+
+app.delete('/api/positions/:id/cleanup', (req, res) => {
+  const employees = getEmployees();
+  const occupants = employees.filter(e => e.position_id === req.params.id);
+  const positions = getPositions();
+  const subordinates = positions.filter(p => p.reporting_to_position_id === req.params.id);
+  
+  if (occupants.length === 0 && subordinates.length === 0) {
+    deletePosition(req.params.id);
+    return res.json({ success: true, message: 'Vacant position cleaned up' });
+  }
+  return res.json({ success: false, message: 'Position not empty' });
 });
 
 // ─── BULK IMPORT ──────────────────────────────────────────────────────

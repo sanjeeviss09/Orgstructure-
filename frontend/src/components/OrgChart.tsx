@@ -122,10 +122,30 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       let targetPositionId = newPosition.id;
 
+      const empRes = await fetch(`${API_BASE}/api/employees/${empId}`);
+      let oldPositionId: string | null = null;
+      if (empRes.ok) {
+        const empData = await empRes.json();
+        oldPositionId = empData.position_id;
+      }
+
       if (action === 'under') {
-        const empRes = await fetch(`${API_BASE}/api/employees/${empId}`);
-        if (empRes.ok) {
-          const empData = await empRes.json();
+        if (oldPositionId) {
+          // Update the existing position to move it under the new manager
+          await fetch(`${API_BASE}/api/positions/${oldPositionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reporting_to_position_id: newPosition.id,
+              department: newPosition.department,
+              business_unit: newPosition.business_unit,
+              sub_function: newPosition.sub_function || ''
+            })
+          });
+          targetPositionId = oldPositionId;
+        } else {
+          // Fallback if no position exists
+          const empData = (await empRes.json());
           const newPosRes = await fetch(`${API_BASE}/api/positions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -146,6 +166,11 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
         }
       } else if (action === 'merge') {
         targetPositionId = newPosition.id;
+        // The old position is now vacant for this employee.
+        // We will call an endpoint to clean it up if empty, or do it on the backend.
+        if (oldPositionId && oldPositionId !== targetPositionId) {
+           await fetch(`${API_BASE}/api/positions/${oldPositionId}/cleanup`, { method: 'DELETE' }).catch(() => {});
+        }
       }
 
       const updateData = {
@@ -1098,9 +1123,10 @@ const OrgTreeNode: React.FC<TreeSharedProps & { node: PositionNode }> = (props) 
   const isPrint = props.isPrint;
   const isMindmap = props.layoutMode === 'mindmap';
 
-  const isVacant = occupants.length === 0 && position.title !== 'Sub Function' && position.title !== 'Department' && position.title !== 'Business Unit';
-  const opacityClass = isVacant ? 'opacity-70' : '';
   const isVirtualNode = position.title === 'Business Unit' || position.title === 'Department' || position.title === 'Sub Function';
+  const activeOccupants = occupants.filter(emp => emp.employment_status !== 'Inactive' && emp.employment_status !== 'Resigned on Roll');
+  const isVacant = activeOccupants.length === 0 && !isVirtualNode;
+  const opacityClass = isVacant ? 'opacity-70' : '';
 
   const isDragOver = props.dragOverNodeId === position.id;
   const isDropSuccess = props.dropSuccessNodeId === position.id;
@@ -1224,14 +1250,18 @@ const OrgTreeNode: React.FC<TreeSharedProps & { node: PositionNode }> = (props) 
           </div>
           <div>
             <p className="text-xs font-bold text-slate-400">Vacant Position</p>
-            {props.canCTC && props.showCTC && position.budgeted_ctc ? (
-              <p className="text-[10px] font-black text-amber-500 mt-0.5">Budget: {fmtCTC(position.budgeted_ctc)}</p>
-            ) : null}
+            {(() => {
+              const budgetToDisplay = position.budgeted_ctc || (occupants.find(e => e.employment_status === 'Inactive' || e.employment_status === 'Resigned on Roll')?.ctc_annual) || 0;
+              if (props.canCTC && props.showCTC && budgetToDisplay) {
+                return <p className="text-[10px] font-black text-amber-500 mt-0.5">Budget: {fmtCTC(budgetToDisplay)}</p>;
+              }
+              return null;
+            })()}
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {occupants.map(emp => {
+          {activeOccupants.map(emp => {
             // Legitimize NEW badge: only 30 days, ignore invalid or default dates
             const isNewEmployee = (() => {
               if (!emp.join_date) return false;
