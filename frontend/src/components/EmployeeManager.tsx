@@ -140,20 +140,19 @@ const DESIGNATION_MAP: Record<string, { tier: number; access: string }> = {
   'Operations Manager': { tier: 4, access: 'Manager' }, 'Team Lead': { tier: 4, access: 'Manager' },
   'Tech Lead': { tier: 4, access: 'Manager' }, 'Project Manager': { tier: 4, access: 'Manager' },
   // Tier 5 – Individual Contributor
-  'Senior Software Engineer': { tier: 5, access: 'Employee' }, 'Senior Frontend Engineer': { tier: 5, access: 'Employee' },
-  'Senior Backend Engineer': { tier: 5, access: 'Employee' }, 'Backend Engineer': { tier: 5, access: 'Employee' },
-  'Frontend Engineer': { tier: 5, access: 'Employee' }, 'Full Stack Engineer': { tier: 5, access: 'Employee' },
-  'Software Engineer': { tier: 5, access: 'Employee' }, 'UI/UX Designer': { tier: 5, access: 'Employee' },
-  'Graphic Designer': { tier: 5, access: 'Employee' }, 'QA Automation Specialist': { tier: 5, access: 'Employee' },
-  'QA Engineer': { tier: 5, access: 'Employee' }, 'SEO Analyst': { tier: 5, access: 'Employee' },
-  'Data Analyst': { tier: 5, access: 'Employee' }, 'Business Analyst': { tier: 5, access: 'Employee' },
-  'Marketing Analyst': { tier: 5, access: 'Employee' }, 'Sales Executive': { tier: 5, access: 'Employee' },
-  'Senior Sales Executive': { tier: 5, access: 'Employee' }, 'Account Executive': { tier: 5, access: 'Employee' },
+  'Clinical Research Associate': { tier: 5, access: 'Employee' }, 'Senior Clinical Research Associate': { tier: 5, access: 'Employee' },
+  'Research Scientist': { tier: 5, access: 'Employee' }, 'Senior Research Scientist': { tier: 5, access: 'Employee' },
+  'Pharmacovigilance Specialist': { tier: 5, access: 'Employee' }, 'Regulatory Affairs Specialist': { tier: 5, access: 'Employee' },
+  'Lab Technician': { tier: 5, access: 'Employee' }, 'Senior Lab Technician': { tier: 5, access: 'Employee' },
+  'Quality Control Analyst': { tier: 5, access: 'Employee' }, 'Quality Assurance Specialist': { tier: 5, access: 'Employee' },
+  'Medical Writer': { tier: 5, access: 'Employee' }, 'Clinical Data Manager': { tier: 5, access: 'Employee' },
+  'Biostatistician': { tier: 5, access: 'Employee' }, 'Formulation Scientist': { tier: 5, access: 'Employee' },
+  'Analytical Chemist': { tier: 5, access: 'Employee' }, 'Medical Science Liaison': { tier: 5, access: 'Employee' },
+  'Sales Representative': { tier: 5, access: 'Employee' }, 'Senior Sales Representative': { tier: 5, access: 'Employee' },
   'HR Executive': { tier: 5, access: 'Employee' }, 'Finance Analyst': { tier: 5, access: 'Employee' },
-  'Accountant': { tier: 5, access: 'Employee' }, 'DevOps Engineer': { tier: 5, access: 'Employee' },
-  'Cloud Engineer': { tier: 5, access: 'Employee' }, 'Data Scientist': { tier: 5, access: 'Employee' },
-  'ML Engineer': { tier: 5, access: 'Employee' }, 'Content Writer': { tier: 5, access: 'Employee' },
-  'Customer Success Manager': { tier: 5, access: 'Employee' }, 'Trainee': { tier: 5, access: 'Employee' }, 'Intern': { tier: 5, access: 'Employee' },
+  'Accountant': { tier: 5, access: 'Employee' }, 'Supply Chain Analyst': { tier: 5, access: 'Employee' },
+  'Manufacturing Technician': { tier: 5, access: 'Employee' }, 'Bioinformatics Scientist': { tier: 5, access: 'Employee' },
+  'Compliance Officer': { tier: 5, access: 'Employee' }, 'Trainee': { tier: 5, access: 'Employee' }, 'Intern': { tier: 5, access: 'Employee' },
 };
 
 const DESIG_BY_TIER: Record<number, string[]> = {
@@ -161,7 +160,7 @@ const DESIG_BY_TIER: Record<number, string[]> = {
   2: ['CTO', 'CFO', 'COO', 'CMO', 'CRO', 'CHRO', 'VP of Engineering', 'VP of HR', 'VP of Finance', 'VP of Sales', 'VP of Marketing', 'VP of Operations', 'VP of Product'],
   3: ['Director of Engineering', 'Director of Sales', 'Director of Operations', 'Director of Marketing', 'Director of HR', 'Director of Finance', 'Head of Product', 'Head of Growth', 'Head of Finance', 'Head of HR', 'Head of Marketing', 'Head of Design', 'Head of Engineering', 'Head of Sales', 'Head of Operations'],
   4: ['Engineering Manager', 'Product Manager', 'QA Lead', 'QA Manager', 'Product Design Lead', 'Digital Marketing Manager', 'Enterprise Accounts Lead', 'Sales Manager', 'HR Manager', 'Finance Manager', 'Operations Manager', 'Team Lead', 'Tech Lead', 'Project Manager'],
-  5: ['Senior Software Engineer', 'Senior Frontend Engineer', 'Senior Backend Engineer', 'Backend Engineer', 'Frontend Engineer', 'Full Stack Engineer', 'Software Engineer', 'UI/UX Designer', 'Graphic Designer', 'QA Automation Specialist', 'QA Engineer', 'SEO Analyst', 'Data Analyst', 'Business Analyst', 'Marketing Analyst', 'Sales Executive', 'Senior Sales Executive', 'Account Executive', 'HR Executive', 'Finance Analyst', 'Accountant', 'DevOps Engineer', 'Cloud Engineer', 'Data Scientist', 'ML Engineer', 'Content Writer', 'Customer Success Manager', 'Trainee', 'Intern'],
+  5: ['Clinical Research Associate', 'Senior Clinical Research Associate', 'Research Scientist', 'Senior Research Scientist', 'Pharmacovigilance Specialist', 'Regulatory Affairs Specialist', 'Lab Technician', 'Senior Lab Technician', 'Quality Control Analyst', 'Quality Assurance Specialist', 'Medical Writer', 'Clinical Data Manager', 'Biostatistician', 'Formulation Scientist', 'Analytical Chemist', 'Medical Science Liaison', 'Sales Representative', 'Senior Sales Representative', 'HR Executive', 'Finance Analyst', 'Accountant', 'Supply Chain Analyst', 'Manufacturing Technician', 'Bioinformatics Scientist', 'Compliance Officer', 'Trainee', 'Intern'],
 };
 
 
@@ -393,10 +392,14 @@ const EmployeeModal: React.FC<{
       ctc_annual:       parseFloat(form.ctc_annual) || 0,
       budget_allocated: parseFloat(form.budget_allocated) || (parseFloat(form.ctc_annual) || 0) * 1.2,
       reporting_to_id:  form.reporting_to_id || null,
-      replaced_employee_id: form.replaced_employee_id || null,
       photo_url:        form.photo_url.trim(),
-      sub_function:     form.sub_function.trim() || undefined,
+      sub_function:     form.sub_function.trim(),
     };
+    
+    delete (parsed as any).past_organization;
+    delete (parsed as any).total_experience;
+    delete (parsed as any).education_qualification;
+    delete (parsed as any).replaced_employee_id;
     
     // Manage notice start date
     if (parsed.employment_status === 'Under Notice Period') {
@@ -1055,6 +1058,37 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
     });
   };
 
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (!selectedIds.size || !newStatus) return;
+    const targetIds = Array.from(selectedIds);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Update Status',
+      message: `Are you sure you want to change the status of ${targetIds.length} selected employees to "${newStatus}"?`,
+      isDestructive: false,
+      confirmText: 'Update Status',
+      onConfirm: async () => {
+        setConfirmDialog(p => ({ ...p, isOpen: false }));
+        setDeleting('bulk-update');
+        try { 
+          await Promise.all(targetIds.map(id => {
+            const updateData: any = { employment_status: newStatus };
+            if (newStatus === 'Under Notice Period') {
+              updateData.notice_start_date = new Date().toISOString();
+            } else {
+              updateData.notice_start_date = null;
+            }
+            return updateEmployee(id, updateData);
+          }));
+          setSelectedIds(new Set());
+          onRefresh(); 
+        }
+        catch { setAlertDialog({ isOpen: true, title: 'Error', message: 'Bulk status update failed.' }); }
+        finally { setDeleting(null); }
+      }
+    });
+  };
+
   const handleDeleteAll = async () => {
     const targetIds = employees
       .filter(emp => emp.id !== currentUser?.employee_id)
@@ -1126,6 +1160,36 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, act
             <div className="flex flex-wrap items-center gap-2">
               {selectedIds.size > 0 && (
                 <>
+                  <div className="relative inline-block">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        if (!newStatus) return;
+                        handleBulkStatusUpdate(newStatus);
+                      }}
+                      disabled={deleting !== null}
+                      className="appearance-none inline-flex items-center gap-1.5 px-4 pr-8 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer outline-none"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%234338ca' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundSize: '1.25em 1.25em',
+                        backgroundRepeat: 'no-repeat'
+                      }}
+                    >
+                      <option value="">Update Status...</option>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Offered Yet to Join">Offered Yet to Join</option>
+                      <option value="Resigned on Roll">Resigned on Roll</option>
+                      <option value="Replacement Joined">Replacement Joined</option>
+                      <option value="Hold">Hold</option>
+                      <option value="Fired">Fired</option>
+                      <option value="Maternity Leave">Maternity Leave</option>
+                      <option value="Career Break">Career Break</option>
+                      <option value="Terminated">Terminated</option>
+                    </select>
+                  </div>
                   <button onClick={handleBulkRelieve} disabled={deleting !== null}
                     className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-sm">
                     <Trash2 className="w-3.5 h-3.5" /> Relieve Selected ({selectedIds.size})

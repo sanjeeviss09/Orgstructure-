@@ -15,6 +15,7 @@ import { UserAnalytics } from './components/UserAnalytics';
 import ReportsCenter from './components/ReportsCenter';
 import { RecruitmentModule } from './components/RecruitmentModule';
 import { fetchEmployees, fetchPositions, Employee, Position, AuthUser, DEFAULT_AVATAR } from './lib/api';
+import { supabase } from './lib/supabase';
 import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, MessageSquare, GraduationCap, ClipboardList, BarChart2, MessageCircle, PieChart } from 'lucide-react';
 import { JobApplicationPortal } from './components/JobApplicationPortal';
 import { CandidateHomePage } from './components/CandidateHomePage';
@@ -75,7 +76,7 @@ function App() {
   }
 
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem('ag_user');
+    const saved = localStorage.getItem('auth_user');
     return saved ? JSON.parse(saved) : null;
   });
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -143,10 +144,27 @@ function App() {
 
   useEffect(() => { if (user) loadData(); }, [user]);
 
-  // Set up Supabase Realtime subscription (Disabled since using local backend)
   useEffect(() => {
     if (!user) return;
-    // Local updates refresh data directly, so realtime websocket to remote Supabase is not needed.
+    
+    const empSub = supabase
+      .channel('employees_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
+        loadData();
+      })
+      .subscribe();
+      
+    const posSub = supabase
+      .channel('positions_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'positions' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(empSub);
+      supabase.removeChannel(posSub);
+    };
   }, [user]);
 
 
@@ -222,7 +240,7 @@ function App() {
           </div>
 
           {/* Nav tabs — left-aligned "side option" */}
-          <nav className="flex items-center gap-3 overflow-x-auto no-scrollbar ml-4">
+          <nav className="flex items-center gap-3 overflow-x-auto no-scrollbar mx-4 flex-1 min-w-0">
             {NAV_TABS.map(tab => (
               <button
                 key={tab.id}
@@ -232,9 +250,9 @@ function App() {
                   setActiveTab(tab.id);
                   setNavHistory([{ tab: tab.id }]);
                 }}
-                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ease-out hover:-translate-y-1 active:scale-90 shrink-0 shadow-sm ${
+                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ease-out hover:scale-105 active:scale-95 shrink-0 shadow-sm ${
                   activeTab === tab.id
-                    ? 'bg-indigo-600 text-white shadow-indigo-300/50 shadow-lg'
+                    ? 'bg-indigo-600 text-white shadow-indigo-300/50 shadow-lg border border-indigo-600'
                     : 'bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md'
                 }`}
               >
@@ -242,6 +260,8 @@ function App() {
                 {cloneElement(tab.icon as any, { className: 'w-6 h-6' })}
               </button>
             ))}
+            {/* Spacer to prevent scroll clipping of the last icon and keep a gap before the profile */}
+            <div className="w-4 shrink-0" />
           </nav>
 
           {/* Right: User */}

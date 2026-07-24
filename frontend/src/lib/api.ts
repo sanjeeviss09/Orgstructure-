@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const DEFAULT_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23cbd5e1'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
@@ -215,59 +216,66 @@ export interface DailyFeedback {
 
 // ─── AUTH ─────────────────────────────────────────────────────────────
 export const login = async (username: string, password: string): Promise<AuthUser> => {
-  const res = await fetch(API_BASE + '/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-  if (!res.ok) {
+  const { data, error } = await supabase
+    .from('app_users')
+    .select('*')
+    .eq('username', username)
+    .single();
+    
+  if (error || !data) {
     throw new Error('Invalid credentials');
   }
-  const data = await res.json();
-  return data.user;
+  
+  if (data.password !== password) {
+    throw new Error('Invalid credentials');
+  }
+  
+  return data as AuthUser;
 };
 
 export const register = async (username: string, password: string, full_name: string): Promise<AuthUser> => {
-  const res = await fetch(API_BASE + '/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, full_name })
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Registration failed');
+  const newId = `USR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const { data, error } = await supabase
+    .from('app_users')
+    .insert({ id: newId, username, password, full_name, role: 'Employee', employee_id: '' })
+    .select('*')
+    .single();
+    
+  if (error) {
+    throw new Error(error.message || 'Registration failed');
   }
-  const data = await res.json();
-  return data.user;
+  return data as AuthUser;
 };
 
 export const updateUserRole = async (userId: string, role: string): Promise<AuthUser> => {
-  const res = await fetch(API_BASE + `/api/auth/users/${userId}/role`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role })
-  });
-  if (!res.ok) {
-    throw new Error('Failed to update role');
+  const { data, error } = await supabase
+    .from('app_users')
+    .update({ role })
+    .eq('id', userId)
+    .select('*')
+    .single();
+    
+  if (error) {
+    throw new Error(error.message || 'Failed to update role');
   }
-  const data = await res.json();
-  return data.user;
+  return data as AuthUser;
 };
 
 export const fetchUsers = async (): Promise<AuthUser[]> => {
-  const res = await fetch(API_BASE + '/api/auth/users');
-  if (!res.ok) throw new Error('Failed to fetch users');
-  return res.json();
+  const { data, error } = await supabase
+    .from('app_users')
+    .select('*');
+    
+  if (error) throw new Error(error.message || 'Failed to fetch users');
+  return data as AuthUser[];
 };
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────
 export const fetchEmployees = async (retries = 3): Promise<Employee[]> => {
   try {
-    const res = await fetch(`${API_BASE}/api/employees?_=${Date.now()}`, {
-      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-    });
-    if (!res.ok) throw new Error('Failed to fetch employees');
-    const data = await res.json();
+    const { data, error } = await supabase.from('employees').select('*');
+    if (error) throw error;
+    
     return (data || []).map((emp: any) => {
       let status = emp.employment_status || 'Active';
       let noticeDate = emp.notice_start_date;
@@ -301,14 +309,12 @@ const TARGETS_CACHE_KEY = 'ag_hr_targets_cache';
 
 export const fetchTargets = async (): Promise<HRTargets> => {
   try {
-    const res = await fetch(`${API_BASE}/api/targets?_=${Date.now()}`, {
-      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-    });
-    if (!res.ok) throw new Error(`Failed to fetch targets: ${res.status}`);
-    const data: HRTargets = await res.json();
+    const { data, error } = await supabase.from('hr_targets').select('*').eq('id', 1).single();
+    if (error) throw error;
+    
     // Cache the successful result
     try { localStorage.setItem(TARGETS_CACHE_KEY, JSON.stringify(data)); } catch {}
-    return data;
+    return data as HRTargets;
   } catch (e) {
     // Fall back to last cached data so the UI doesn't wipe targets on a transient error
     try {
@@ -326,16 +332,12 @@ export const fetchTargets = async (): Promise<HRTargets> => {
 };
 
 export const saveTargets = async (targets: HRTargets): Promise<HRTargets> => {
-  const res = await fetch(API_BASE + '/api/targets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(targets)
-  });
-  if (!res.ok) throw new Error('Failed to save targets');
-  const data = await res.json();
+  const { data, error } = await supabase.from('hr_targets').upsert({ id: 1, ...targets }).select('*').single();
+  if (error) throw new Error('Failed to save targets: ' + error.message);
+  
   // Update cache on successful save
-  try { localStorage.setItem(TARGETS_CACHE_KEY, JSON.stringify(data.targets)); } catch {}
-  return data.targets;
+  try { localStorage.setItem(TARGETS_CACHE_KEY, JSON.stringify(data)); } catch {}
+  return data as HRTargets;
 };
 
 export const getAiStrategy = async (metrics: any): Promise<string> => {
@@ -388,7 +390,10 @@ export const fetchStats = async (buFilter?: string, deptFilter?: string): Promis
   
   const avgCTC = activeEmployees ? totalPayroll / activeEmployees : 0;
   
-  const budgetCTC = positions.reduce((sum, p) => sum + (Number(p.budgeted_ctc) || 0), 0);
+  const budgetCTC = positions.reduce((sum, p) => {
+    const empForPos = emps.find(e => e.position_id === p.id);
+    return sum + ((empForPos ? (Number(empForPos.budget_allocated) || Number(empForPos.ctc_annual) || 0) : 0) || (Number(p.budgeted_ctc) || 0));
+  }, 0);
   const activeCTC = totalPayroll;
   const ctcUtilization = budgetCTC > 0 ? Math.round((activeCTC / budgetCTC) * 100) : 0;
 
@@ -459,7 +464,8 @@ export const fetchStats = async (buFilter?: string, deptFilter?: string): Promis
   totalBudget = 0;
   Object.keys(deptBudget).forEach(k => delete deptBudget[k]);
   positions.forEach(p => {
-    const b = Number(p.budgeted_ctc) || 0;
+    const empForPos = emps.find(e => e.position_id === p.id);
+    const b = (empForPos ? (Number(empForPos.budget_allocated) || Number(empForPos.ctc_annual) || 0) : 0) || (Number(p.budgeted_ctc) || 0);
     totalBudget += b;
     deptBudget[p.department] = (deptBudget[p.department] || 0) + b;
   });
@@ -483,7 +489,8 @@ export const fetchStats = async (buFilter?: string, deptFilter?: string): Promis
     // Find offers linked to this position
     const posOffers = offers.filter((o: any) => o.position_id === p.id && o.status !== 'Offer Declined' && o.status !== 'Offer Expired');
     
-    const budgetedCTC = Number(p.budgeted_ctc) || 0;
+    const empForPos = activeEmps[0] || emps.find(e => e.position_id === p.id);
+    const budgetedCTC = (empForPos ? (Number(empForPos.budget_allocated) || Number(empForPos.ctc_annual) || 0) : 0) || (Number(p.budgeted_ctc) || 0);
     const activeCTC = activeEmps.reduce((sum, e) => sum + (Number(e.ctc_annual) || 0), 0);
     const activeHC = activeEmps.length;
     
@@ -779,73 +786,135 @@ export const fetchStats = async (buFilter?: string, deptFilter?: string): Promis
 };
 
 export const createEmployee = async (emp: Omit<Employee, 'id'>): Promise<Employee> => {
-  const res = await fetch(API_BASE + '/api/employees', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...emp,
-      join_date: emp.join_date || new Date().toISOString()
-    })
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Failed to create');
+  const newId = emp.emp_id || `EMP_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const payload = {
+    ...emp,
+    id: newId,
+    join_date: emp.join_date || new Date().toISOString()
+  };
+  const { data, error } = await supabase.from('employees').insert(payload).select('*').single();
+  if (error) throw new Error(error.message || 'Failed to create employee');
+    
+  let role = 'Employee';
+  switch (data.role_tier) {
+    case 1: role = 'Admin'; break;
+    case 2: role = 'Management'; break;
+    case 3: role = 'HOD'; break;
+    case 4: role = 'Manager'; break;
   }
-  const data = await res.json();
-  return data.employee;
+    
+  await supabase.from('app_users').upsert({
+    id: `USR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    username: data.email_official || `user_${data.emp_id}`,
+    password: 'password123', // default password
+    full_name: data.full_name,
+    role: role,
+    employee_id: data.id
+  }, { onConflict: 'employee_id' });
+
+  return data;
 };
 
 export const updateEmployee = async (id: string, emp: Partial<Employee>): Promise<Employee> => {
-  const res = await fetch(`${API_BASE}/api/employees/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(emp)
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Failed to update');
-  }
-  const data = await res.json();
-  return data.employee;
+  const { data, error } = await supabase.from('employees').update(emp).eq('id', id).select('*').single();
+  if (error) throw new Error(error.message || 'Failed to update employee');
+  return data;
 };
 
 export const deleteEmployee = async (id: string): Promise<void> => {
-  const res = await fetch(`${API_BASE}/api/employees/${id}`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Failed to delete');
-  }
+  const { error } = await supabase.from('employees').delete().eq('id', id);
+  if (error) throw new Error(error.message || 'Failed to delete employee');
 };
 
 export const bulkDeleteEmployees = async (ids: string[]): Promise<void> => {
   if (!ids.length) return;
-  const res = await fetch(API_BASE + '/api/employees/bulk-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids })
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Failed to bulk delete employees');
-  }
+  const { error } = await supabase.from('employees').delete().in('id', ids);
+  if (error) throw new Error(error.message || 'Failed to bulk delete employees');
 };
 
-
 export const bulkImportEmployees = async (
-  employees: Record<string, string>[]
+  rawEmployees: Record<string, string>[]
 ): Promise<{ added: number; message: string }> => {
-  const res = await fetch(API_BASE + '/api/employees/bulk', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ employees })
+  if (!rawEmployees.length) return { added: 0, message: 'No rows to import.' };
+
+  const parsedEmployees: any[] = [];
+  const positionsToCreate: any[] = [];
+
+  rawEmployees.forEach(e => {
+    const positionId = `P_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const empId = e.id || e.emp_id || `EMP_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const department = e.department || 'General';
+    const designation = e.designation || 'Staff';
+    
+    const ctcAnnualStr = e.ctc_annual ? String(e.ctc_annual).replace(/,/g, '') : '';
+    const budgetAllocatedStr = e.budget_allocated ? String(e.budget_allocated).replace(/,/g, '') : '';
+    const ctcAnnual = parseFloat(ctcAnnualStr) || 0;
+    const budgetAllocated = parseFloat(budgetAllocatedStr) || ctcAnnual * 1.2;
+    
+    const businessUnit = e.business_unit || 'General';
+    const subFunction = e.sub_function || '';
+
+    positionsToCreate.push({
+      id: positionId,
+      title: designation,
+      department: department,
+      business_unit: businessUnit,
+      sub_function: subFunction,
+      status: 'A',
+      budgeted_ctc: budgetAllocated
+    });
+
+    parsedEmployees.push({
+      id: empId,
+      emp_id: e.emp_id || `EMP${Math.floor(1000 + Math.random() * 9000)}`,
+      position_id: positionId,
+      full_name: e.full_name || 'Unnamed Employee',
+      company_name: e.company_name || 'Axxel Corp',
+      business_unit: businessUnit,
+      department: department,
+      designation: designation,
+      role_tier: parseInt(e.role_tier) || 5,
+      employment_status: e.employment_status || 'Active',
+      email_official: e.email_official || `emp_${Date.now()}@axxel.com`,
+      ctc_annual: ctcAnnual,
+      ctc_currency: e.ctc_currency || 'INR',
+      budget_allocated: budgetAllocated,
+      dashboard_access: e.dashboard_access || 'Employee',
+      reporting_to_id: e.reporting_manager_emp_id || null,
+      photo_url: e.photo_url || '',
+      sub_function: subFunction
+    });
   });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Bulk import failed');
+
+  const { error: posError } = await supabase.from('positions').upsert(positionsToCreate);
+  if (posError) throw new Error(posError.message || 'Failed to create positions for bulk import');
+
+  const { data, error } = await supabase.from('employees').upsert(parsedEmployees).select();
+  if (error) throw new Error(error.message || 'Bulk import failed');
+    
+  if (data) {
+    const usersToCreate = data.map((emp: any) => {
+      let role = 'Employee';
+      switch (emp.role_tier) {
+        case 1: role = 'Admin'; break;
+        case 2: role = 'Management'; break;
+        case 3: role = 'HOD'; break;
+        case 4: role = 'Manager'; break;
+      }
+      return {
+        id: `USR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        username: emp.email_official || `user_${emp.emp_id}`,
+        password: 'password123',
+        full_name: emp.full_name,
+        role: role,
+        employee_id: emp.id
+      };
+    });
+    // onConflict 'employee_id' prevents duplicate users for the same employee if re-imported
+    await supabase.from('app_users').upsert(usersToCreate, { onConflict: 'employee_id' });
   }
-  return res.json();
+
+  return { added: data ? data.length : parsedEmployees.length, message: `Successfully imported ${data ? data.length : parsedEmployees.length} employees.` };
 };
 
 // ─── WELLNESS MODULE API ──────────────────────────────────────────────
@@ -987,9 +1056,9 @@ export const loginIntern = async (internId: string, password: string): Promise<I
 
 export const fetchPositions = async (retries = 3): Promise<Position[]> => {
   try {
-    const res = await fetch(`${API_BASE}/api/positions?_=${Date.now()}`);
-    if (!res.ok) throw new Error('Failed to fetch positions');
-    return await res.json();
+    const { data, error } = await supabase.from('positions').select('*');
+    if (error) throw error;
+    return data || [];
   } catch (error: any) {
     if (retries > 0) {
       console.warn(`Backend fetch failed for positions, retrying in 1s... (${retries} left)`);
@@ -999,6 +1068,25 @@ export const fetchPositions = async (retries = 3): Promise<Position[]> => {
     console.warn('Backend fetch failed:', error.message);
     return [];
   }
+};
+
+export const createPosition = async (pos: Partial<Position>): Promise<Position> => {
+  const newId = pos.id || `POS_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const payload = { ...pos, id: newId };
+  const { data, error } = await supabase.from('positions').insert(payload).select('*').single();
+  if (error) throw new Error(error.message || 'Failed to create position');
+  return data;
+};
+
+export const updatePosition = async (id: string, pos: Partial<Position>): Promise<Position> => {
+  const { data, error } = await supabase.from('positions').update(pos).eq('id', id).select('*').single();
+  if (error) throw new Error(error.message || 'Failed to update position');
+  return data;
+};
+
+export const deletePosition = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('positions').delete().eq('id', id);
+  if (error) throw new Error(error.message || 'Failed to delete position');
 };
 
 export const fetchInterns = async (): Promise<Intern[]> => {
@@ -1065,11 +1153,76 @@ export interface UserEngagement {
 }
 
 export const fetchUserEngagement = async (): Promise<UserEngagement[]> => {
-  const res = await fetch(`${API_BASE}/api/analytics/user-engagement?_=${Date.now()}`, {
-    headers: { 'Cache-Control': 'no-cache' }
+  const { data: employees, error: empError } = await supabase.from('employees').select('*');
+  if (empError) throw new Error(empError.message);
+  
+  const now = Date.now();
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: feedbacks } = await supabase
+    .from('daily_feedbacks')
+    .select('employee_id')
+    .gte('date', thirtyDaysAgo);
+
+  const { data: sessions } = await supabase
+    .from('counselling_sessions')
+    .select('messages');
+    
+  const feedbackCountMap = new Map<string, number>();
+  if (feedbacks) {
+    for (const f of feedbacks) {
+      feedbackCountMap.set(f.employee_id, (feedbackCountMap.get(f.employee_id) || 0) + 1);
+    }
+  }
+
+  const chatCountMap = new Map<string, number>();
+  if (sessions) {
+    for (const s of sessions) {
+      const msgs = Array.isArray(s.messages) ? s.messages : [];
+      for (const m of msgs) {
+        if (m && m.sender_id) {
+          chatCountMap.set(m.sender_id, (chatCountMap.get(m.sender_id) || 0) + 1);
+        }
+      }
+    }
+  }
+
+  const result: UserEngagement[] = (employees || []).map((emp: any) => {
+    const feedbackCount = feedbackCountMap.get(emp.id) || 0;
+    const feedbackScore = Math.min(40, feedbackCount * 8); 
+
+    const chatCount = chatCountMap.get(emp.id) || 0;
+    const chatScore = Math.min(30, chatCount * 6);
+
+    const loginDays = 0;
+    const loginScore = 0;
+
+    const score = feedbackScore + chatScore + loginScore;
+    const rating: 'Good' | 'Okay' | 'Low Interactive' =
+      score >= 70 ? 'Good' : score >= 40 ? 'Okay' : 'Low Interactive';
+
+    return {
+      employee_id: emp.id,
+      full_name: emp.full_name,
+      department: emp.department,
+      designation: emp.designation,
+      business_unit: emp.business_unit,
+      dashboard_access: emp.dashboard_access,
+      employment_status: emp.employment_status,
+      photo_url: emp.photo_url || '',
+      join_date: emp.join_date,
+      feedback_count: feedbackCount,
+      chat_count: chatCount,
+      login_days: loginDays,
+      feedback_score: feedbackScore,
+      chat_score: chatScore,
+      login_score: loginScore,
+      score,
+      rating
+    };
   });
-  if (!res.ok) throw new Error('Failed to fetch user engagement analytics');
-  return res.json();
+  
+  return result;
 };
 
 // ─── KNOWLEDGE BASE API ────────────────────────────────────────────────────────

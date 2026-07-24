@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface CandidateHomePageProps {
-  onEnterPortal: (type: 'candidate' | 'offered') => void;
+  onEnterPortal: (type: 'candidate' | 'offered' | 'login') => void;
 }
 
 // ── Aira Animated SVG for Home Page ──────────────────────────────
@@ -383,7 +383,7 @@ export const CandidateHomePage: React.FC<CandidateHomePageProps> = ({ onEnterPor
           <button onClick={() => setChatOpen(!chatOpen)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 12, border: '1.5px solid #e0e7ff', background: 'white', color: '#4f46e5', fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s' }}>
             <MessageCircle size={15} /> Chat with Aira
           </button>
-          <button onClick={() => onEnterPortal('candidate')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 12, background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(79,70,229,0.35)', transition: 'all 0.2s' }}>
+          <button onClick={() => onEnterPortal('login')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 12, background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(79,70,229,0.35)', transition: 'all 0.2s' }}>
             Employee Login <ArrowRight size={14} />
           </button>
         </div>

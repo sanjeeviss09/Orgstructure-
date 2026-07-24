@@ -86,39 +86,35 @@ app.get('/api/auth/users', (req, res) => {
 });
 
 app.post('/api/auth/register', (req, res) => {
-  const { username, password, full_name } = req.body;
-  if (!username || !password || !full_name) {
-    return res.status(400).json({ error: 'Username, password, and full name are required' });
+  const { username, password, employee_number } = req.body;
+  if (!username || !password || !employee_number) {
+    return res.status(400).json({ error: 'Username, password, and employee number are required' });
   }
   try {
-    const empId = `E_${crypto.randomUUID().substring(0, 8)}`;
-    const newEmp = addEmployee({
-      id: empId,
-      emp_id: empId,
-      full_name,
-      company_name: 'Axxel',
-      business_unit: 'General',
-      department: 'General',
-      designation: 'New Employee',
-      role_tier: 5,
-      employment_status: 'Active',
-      email_official: `${username.trim()}@axxel.com`,
-      ctc_annual: 0,
-      ctc_currency: 'INR',
-      budget_allocated: 0,
-      dashboard_access: 'Employee',
-      reporting_to_id: null,
-      photo_url: '',
-      join_date: new Date().toISOString()
-    });
+    const allEmployees = getEmployees();
+    const existingEmp = allEmployees.find(e => e.emp_id === employee_number);
+    if (!existingEmp) {
+      return res.status(404).json({ error: 'Employee number not found in system. Please contact HR.' });
+    }
+    
+    // Check if user already exists for this employee
+    const allUsers = getUsers();
+    if (allUsers.find(u => u.employee_id === existingEmp.id)) {
+      return res.status(400).json({ error: 'An account is already registered for this employee number.' });
+    }
+    
+    // Also check if username is taken
+    if (allUsers.find(u => u.username === username.trim())) {
+      return res.status(400).json({ error: 'Username is already taken.' });
+    }
 
     const newUser = createUser({
       id: `U_${crypto.randomUUID().substring(0, 8)}`,
       username: username.trim(),
       password,
-      full_name,
+      full_name: existingEmp.full_name,
       role: 'Employee',
-      employee_id: newEmp.id
+      employee_id: existingEmp.id
     });
     const { password: _pw, ...safeUser } = newUser;
     return res.json({ success: true, user: safeUser });
@@ -150,10 +146,42 @@ app.post('/api/reset', (req, res) => {
   }
 });
 
+// ─── AI COMPANION HISTORY RESTORE ───────────────────────────────────────────────
+// Called by ChatPanel on mount to restore last 10 messages from the neural brain DB
+app.get('/api/ai-companion/history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const limit = parseInt(req.query.limit as string || '10', 10);
+    const brainRes = await fetch(`http://localhost:8000/api/brain/memory/${encodeURIComponent(userId)}?limit=${limit}`);
+    if (!brainRes.ok) {
+      console.warn('[History] Brain memory unavailable, returning empty history');
+      return res.json({ history: [] });
+    }
+    const data = await brainRes.json();
+    return res.json(data);
+  } catch (err) {
+    console.warn('[History] Could not reach Python brain:', err);
+    return res.json({ history: [] }); // Graceful degradation
+  }
+});
+
+// ─── AI COMPANION BRAIN HEALTH ───────────────────────────────────────────────
+// Proxies /api/brain/health from Python backend
+app.get('/api/ai-companion/brain-health', async (req, res) => {
+  try {
+    const brainRes = await fetch('http://localhost:8000/api/brain/health');
+    if (!brainRes.ok) return res.json({ status: 'offline' });
+    const data = await brainRes.json();
+    return res.json(data);
+  } catch {
+    return res.json({ status: 'offline', total_conversations: 0, unique_users: 0, learning_entries: 0 });
+  }
+});
+
 // ─── AI COMPANION CHAT ─────────────────────────────────────────────────────────
 app.post('/api/ai-companion/chat', async (req, res) => {
   try {
-    const { message, role, activeTab, context, history = [] } = req.body;
+    const { message, role, activeTab, context, history = [], userId, userName } = req.body;
     if (!message) return res.status(400).json({ error: 'Message required' });
 
     // Role personality prefix
@@ -166,7 +194,7 @@ app.post('/api/ai-companion/chat', async (req, res) => {
       Intern:     'You are assisting an Intern with their internship queries.'
     };
 
-    const fullSystemPrompt = `You are Aira, the Enterprise AI Companion built into the ORG Enterprise Intelligence Platform.
+    const fullSystemPrompt = `You are Aira, the Enterprise AI Companion built into the ORG Enterprise Intelligence Platform. Note: ORG is a leading Pharmaceutical Science and Research Company. All your examples, generated roles, departments, and responses must strictly reflect the pharma and life sciences industry (e.g., Clinical Research, R&D, Pharmacovigilance, Lab Scientists, etc.). Never use IT or Software Engineering roles as defaults.
 ${rolePersonality[role] || rolePersonality['Employee']}
 
 Platform Context: Will be provided in a separate system message.
@@ -195,17 +223,22 @@ Currency: Always use ₹ (Indian Rupee / INR). Never use $ or USD.
 
 4. **If seeing the full page/report would give extra value**, add ONE navigation token at the very END of your reply in this exact format:
    [NAVIGATE:tabname:Button Label]
-   Valid tab names: dashboard, orgchart, directory, recruitment, wellness, reports, templates, targets, manage_interns, user_analytics
+   Valid tab names ONLY: dashboard, orgchart, directory, recruitment, wellness, reports, templates, targets, manage_interns, user_analytics
    Example: [NAVIGATE:reports:View Full Reports]
-   Only include ONE navigate token maximum. Never include it in the middle of your response.
+   Only include ONE navigate token maximum. Do NOT invent new tab names (e.g., do not use accept_offer).
 
-5. **Use the context data to give real answers.** If asked about employees, use the active employee count. If asked about vacancies, use the vacant positions number. Extrapolate sensibly.
+5. **Role-Based Action Boundaries**: 
+   - Understand WHO you are talking to based on their role. 
+   - Admins, Managers, HR, and Employees DO NOT accept job offers. They create or review them. NEVER generate instructions or buttons like "Accept Offer" for these users.
+   - Tailor your suggested actions strictly to the user's role (e.g., Admins "Approve" or "Send" offers).
 
-6. **Budget/CTC**: Always format numbers in Indian format (₹ X,XX,XXX or ₹ X Lakh).
+6. **Use the context data to give real answers.** If asked about employees, use the active employee count. If asked about vacancies, use the vacant positions number. Extrapolate sensibly.
 
-7. **Be concise but complete.** 3-8 lines is ideal. Use tables when comparing 2+ categories.
+7. **Budget/CTC**: Always format numbers in Indian format (₹ X,XX,XXX or ₹ X Lakh).
 
-8. **Tone**: Warm, professional, confident. You are an expert HR partner.
+8. **Be concise but complete.** 3-8 lines is ideal. Use tables when comparing 2+ categories.
+
+9. **Tone**: Warm, professional, confident. You are an expert HR partner.
 
 ## OPBIE Enterprise Psychology Knowledge Base:
 You have access to the following organizational behavioral insights and policies. Use these to guide your answers on culture, engagement, leadership, and policies. Do not attempt to guess individual employee truths, instead rely on these organizational trends and guidelines:
@@ -219,36 +252,31 @@ ${getOpbieKnowledge().map(k => `### ${k.title} (${k.category})\n${k.content}`).j
     const attritionRate = totalEmps > 0 ? ((resignedEmps / totalEmps) * 100).toFixed(1) + '%' : '0%';
     const enrichedContext = `${context || 'No context provided.'}\nReal-time Attrition Rate: ${attritionRate} (Total: ${totalEmps}, Left: ${resignedEmps})`;
 
-    const messages = [
-      { role: 'system', content: fullSystemPrompt },
-      { role: 'system', content: `Current Platform Context:\n${enrichedContext}` },
-      ...(history || []).slice(-8),
-      { role: 'user', content: message }
-    ];
-
-    const aiRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    const aiRes = await fetch('http://localhost:8000/api/orchestrate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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'
       },
       body: JSON.stringify({
-        model: 'meta/llama-3.1-8b-instruct',
-        messages,
-        temperature: 0.4,
-        max_tokens: 500
+        message,
+        role,
+        activeTab,
+        context: enrichedContext,
+        history,
+        // Forward user identity to neural brain for per-user memory
+        userId: userId || 'anonymous',
+        userName: userName || 'User'
       })
     });
 
     if (!aiRes.ok) {
       const err = await aiRes.text();
-      console.error('AI Companion error:', err);
+      console.error('Python Orchestrator error:', err);
       return res.status(500).json({ error: 'AI service unavailable' });
     }
 
     const aiData = await aiRes.json();
-    const reply = aiData.choices?.[0]?.message?.content?.trim() || "I'm not sure how to answer that. Could you rephrase?";
-    return res.json({ reply });
+    return res.json({ reply: aiData.reply || "I'm not sure how to answer that. Could you rephrase?" });
   } catch (err) {
     console.error('AI Companion chat error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -981,6 +1009,18 @@ app.get('/api/analytics/forecasting', (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`\n✅ Antigravity Backend running on http://localhost:${port}`);
+import { createEnterpriseServer } from './api/server';
+
+createEnterpriseServer().then(enterpriseApp => {
+  app.use('/enterprise', enterpriseApp);
+  app.listen(port, () => {
+    console.log(`\n✅ Antigravity Backend running on http://localhost:${port}`);
+    console.log(`✅ Enterprise API mounted on http://localhost:${port}/enterprise`);
+  });
+}).catch(err => {
+  console.error("Failed to start enterprise server", err);
+  // Fallback to legacy
+  app.listen(port, () => {
+    console.log(`\n✅ Antigravity Backend running on http://localhost:${port} (Legacy Mode)`);
+  });
 });

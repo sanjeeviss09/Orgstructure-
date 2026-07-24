@@ -9,9 +9,11 @@ interface KpiDetailsViewProps {
   kpiType: KpiType;
   onBack: () => void;
   formatCurrency: (val: number) => string;
+  buFilter?: string;
+  deptFilter?: string;
 }
 
-export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack, formatCurrency }) => {
+export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack, formatCurrency, buFilter, deptFilter }) => {
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -71,11 +73,33 @@ export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack,
   let iconBg = '';
   let content = null;
 
+  // Apply filters
+  const filteredPositions = positions.filter(p => {
+    if (buFilter && p.business_unit !== buFilter) return false;
+    if (deptFilter && p.department !== deptFilter) return false;
+    return true;
+  });
+
+  const filteredEmployees = employees.filter(e => {
+    if (buFilter && e.business_unit !== buFilter) return false;
+    if (deptFilter && e.department !== deptFilter) return false;
+    return true;
+  });
+
+  const filteredOffers = offers.filter(o => {
+    const pos = positions.find(p => p.id === o.position_id);
+    const oBu = pos?.business_unit;
+    const oDept = pos?.department;
+    if (buFilter && oBu !== buFilter) return false;
+    if (deptFilter && oDept !== deptFilter) return false;
+    return true;
+  });
+
   if (kpiType === 'budget') {
     title = 'Budgeted Headcount & Cost Details';
     icon = <Landmark className="w-6 h-6 text-blue-600" />;
     iconBg = 'bg-blue-50';
-    const activePositions = positions.filter(p => p.status !== 'C');
+    const activePositions = filteredPositions.filter(p => p.status !== 'C');
     
     content = (
       <table className="w-full text-left border-collapse">
@@ -105,10 +129,15 @@ export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack,
       </table>
     );
   } else if (kpiType === 'active') {
-    title = 'Active Headcount & Cost Details';
+    title = 'Active Employees Details';
     icon = <Users className="w-6 h-6 text-emerald-600" />;
     iconBg = 'bg-emerald-50';
-    const activeEmps = employees.filter(e => e.employment_status === 'Active' || e.employment_status === 'Replacement Joined');
+    const activeEmps = filteredEmployees.filter(e => 
+      e.employment_status === 'Active' || 
+      e.employment_status === 'Replacement Joined' ||
+      e.employment_status === 'Under Notice Period' ||
+      e.employment_status === 'Resigned on Roll'
+    );
     
     content = (
       <table className="w-full text-left border-collapse">
@@ -152,12 +181,12 @@ export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack,
       </table>
     );
   } else if (kpiType === 'offered') {
-    title = 'Offered Candidates & Cost Details';
-    icon = <Briefcase className="w-6 h-6 text-purple-600" />;
-    iconBg = 'bg-purple-50';
+    title = 'Offered Candidates Details';
+    icon = <Briefcase className="w-6 h-6 text-indigo-600" />;
+    iconBg = 'bg-indigo-50';
     
     // Active offers that are not declined, expired, or already joined
-    const activeOffers = offers.filter(o => 
+    const activeOffers = filteredOffers.filter(o => 
       o.status !== 'Offer Declined' && 
       o.status !== 'Offer Expired' && 
       o.status !== 'Joined' &&
@@ -249,15 +278,15 @@ export const KpiDetailsView: React.FC<KpiDetailsViewProps> = ({ kpiType, onBack,
     icon = <AlertTriangle className="w-6 h-6 text-amber-600" />;
     iconBg = 'bg-amber-50';
     
-    const vacantPos = positions.filter(p => {
-      const activeEmps = employees.filter(e => e.position_id === p.id && (
+    const vacantPos = filteredPositions.filter(p => {
+      const activeEmps = filteredEmployees.filter(e => e.position_id === p.id && (
         e.employment_status === 'Active' || 
         e.employment_status === 'Replacement Joined' ||
         e.employment_status === 'Under Notice Period' ||
         e.employment_status === 'Resigned on Roll'
       ));
-      const oyjEmp = employees.find(e => e.position_id === p.id && e.employment_status === 'Offered Yet to Join');
-      const posOffers = offers.filter(o => o.position_id === p.id && o.status !== 'Offer Declined' && o.status !== 'Offer Expired' && o.status !== 'Joined');
+      const oyjEmp = filteredEmployees.find(e => e.position_id === p.id && e.employment_status === 'Offered Yet to Join');
+      const posOffers = filteredOffers.filter(o => o.position_id === p.id && o.status !== 'Offer Declined' && o.status !== 'Offer Expired' && o.status !== 'Joined');
       
       const hasActive = activeEmps.length > 0;
       const hasOyj = !!oyjEmp || (!oyjEmp && p.status === 'OYJ');

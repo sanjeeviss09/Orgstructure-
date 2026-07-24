@@ -15,7 +15,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loginMode, setLoginMode] = useState<'employee'|'intern_login'>('employee');
   const [isRegistering, setIsRegistering] = useState(false);
-  const [fullName, setFullName] = useState('');
+  const [employeeNumber, setEmployeeNumber] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
 
   React.useEffect(() => {
@@ -35,8 +35,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     try {
       if (loginMode === 'employee') {
         if (isRegistering) {
-          if (!fullName.trim()) throw new Error('Full Name is required');
-          const user = await register(username.trim(), password, fullName.trim());
+          if (!employeeNumber.trim()) throw new Error('Employee Number is required');
+          const user = await register(username.trim(), password, employeeNumber.trim());
           onLogin(user);
         } else {
           const user = await login(username.trim(), password);
@@ -120,7 +120,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {loginMode === 'employee' && isRegistering && (
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Full Name</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Employee Number</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <User className="h-4 w-4 text-slate-400" />
@@ -129,9 +129,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     type="text"
                     required
                     className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-semibold text-slate-900 placeholder:font-medium placeholder:text-slate-400 transition-all outline-none"
-                    placeholder="Enter your full name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter employee number (e.g. EMP1001)"
+                    value={employeeNumber}
+                    onChange={(e) => setEmployeeNumber(e.target.value)}
                     disabled={loading}
                   />
                 </div>
@@ -231,6 +231,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mb-1">Quick Login (Testing)</div>
           <div className="flex gap-2">
             <button type="button" onClick={() => onLogin({ id: 'EMP001', username: 'admin', full_name: 'Admin User', role: 'Admin', employee_id: 'EMP001' })} className="flex-1 text-[11px] py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 transition-colors">Admin</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP005', username: 'management', full_name: 'Management User', role: 'Management', employee_id: 'EMP005' })} className="flex-1 text-[11px] py-2 bg-amber-50 text-amber-700 rounded-lg font-bold hover:bg-amber-100 transition-colors">Management</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP004', username: 'hod', full_name: 'HOD User', role: 'HOD', employee_id: 'EMP004' })} className="flex-1 text-[11px] py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold hover:bg-emerald-100 transition-colors">HOD</button>
             <button type="button" onClick={() => onLogin({ id: 'EMP002', username: 'manager', full_name: 'Manager User', role: 'Manager', employee_id: 'EMP002' })} className="flex-1 text-[11px] py-2 bg-purple-50 text-purple-700 rounded-lg font-bold hover:bg-purple-100 transition-colors">Manager</button>
             <button type="button" onClick={() => onLogin({ id: 'EMP003', username: 'employee', full_name: 'Employee User', role: 'Employee', employee_id: 'EMP003' })} className="flex-1 text-[11px] py-2 bg-blue-50 text-blue-700 rounded-lg font-bold hover:bg-blue-100 transition-colors">Employee</button>
           </div>

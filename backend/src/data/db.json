@@ -1,206 +1,153 @@
 {
   "users": [
     {
-      "id": "U_AXX09",
-      "username": "AXX09",
-      "password": "AXX09",
-      "full_name": "System Admin",
-      "role": "Admin",
-      "employee_id": null
-    },
-    {
-      "id": "u_1",
-      "username": "marcus",
+      "id": "u_2",
+      "username": "elena",
       "password": "password123",
-      "full_name": "Marcus Sterling",
-      "role": "Admin",
-      "employee_id": "1",
-      "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop"
+      "full_name": "Elena Vance",
+      "role": "Management",
+      "employee_id": null,
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop"
     },
     {
-      "id": "u_4e61d9f8-8ce0-4545-b500-a0ae70f60281",
+      "id": "u_3",
+      "username": "liam",
+      "password": "password123",
+      "full_name": "Liam Carter",
+      "role": "HOD",
+      "employee_id": null,
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
+    },
+    {
+      "id": "u_4",
+      "username": "michael",
+      "password": "password123",
+      "full_name": "Michael Chang",
+      "role": "Manager",
+      "employee_id": null,
+      "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop"
+    },
+    {
+      "id": "u_5",
+      "username": "alex",
+      "password": "password123",
+      "full_name": "Alex Rivera",
+      "role": "Employee",
+      "employee_id": null,
+      "avatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop"
+    },
+    {
+      "id": "u_e6671c3a-15b1-4bb1-acd2-6259ddbb17c6",
       "username": "test",
       "password": "password123",
       "full_name": "Ranjit Kumar R",
       "role": "Manager",
-      "employee_id": "4e61d9f8-8ce0-4545-b500-a0ae70f60281",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357930"
+      "employee_id": "e6671c3a-15b1-4bb1-acd2-6259ddbb17c6",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213970"
     },
     {
-      "id": "u_0a30db96-8d1f-41ea-8837-8106b7d709ea",
+      "id": "u_ddd7121f-9bf8-4f7f-962d-93514a9fd814",
       "username": "test1",
       "password": "password123",
       "full_name": "Ghousiya S",
       "role": "Employee",
-      "employee_id": "0a30db96-8d1f-41ea-8837-8106b7d709ea",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357931"
+      "employee_id": "ddd7121f-9bf8-4f7f-962d-93514a9fd814",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213971"
     },
     {
-      "id": "u_578cba0f-05ef-4f7d-8b39-7807001f78d8",
+      "id": "u_1a857ede-dd57-455d-bfd1-81ccc19ec34c",
       "username": "test2",
       "password": "password123",
       "full_name": "Sobiya M",
       "role": "Manager",
-      "employee_id": "578cba0f-05ef-4f7d-8b39-7807001f78d8",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357932"
+      "employee_id": "1a857ede-dd57-455d-bfd1-81ccc19ec34c",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213972"
     },
     {
-      "id": "u_bb781f54-7de2-454b-b280-b3ef7254c53b",
+      "id": "u_bb2377cb-d458-40d0-b009-08d35ae18f2b",
       "username": "test3",
       "password": "password123",
       "full_name": "Lakshmi S",
       "role": "Employee",
-      "employee_id": "bb781f54-7de2-454b-b280-b3ef7254c53b",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357933"
+      "employee_id": "bb2377cb-d458-40d0-b009-08d35ae18f2b",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213973"
     },
     {
-      "id": "u_986ee626-c740-4243-a12c-b6b3a4443b1b",
+      "id": "u_e75fe3cd-ddfb-4951-8b83-834a682d9c39",
       "username": "test4",
       "password": "password123",
       "full_name": "Jeevitha B",
       "role": "Employee",
-      "employee_id": "986ee626-c740-4243-a12c-b6b3a4443b1b",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357934"
+      "employee_id": "e75fe3cd-ddfb-4951-8b83-834a682d9c39",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213974"
     },
     {
-      "id": "u_b5bb96e7-2fe0-48d0-8172-4808158fe41f",
+      "id": "u_493c7799-a525-41ec-b8a5-d0b25629c218",
       "username": "test5",
       "password": "password123",
       "full_name": "Vembuselvi T",
       "role": "Manager",
-      "employee_id": "b5bb96e7-2fe0-48d0-8172-4808158fe41f",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357935"
+      "employee_id": "493c7799-a525-41ec-b8a5-d0b25629c218",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213975"
     },
     {
-      "id": "u_b13b91c4-8fbd-4478-8507-d2f79df3b944",
+      "id": "u_a884be90-d700-4399-b8a2-ee2d691e9010",
       "username": "test6",
       "password": "password123",
       "full_name": "Shalini K",
       "role": "Employee",
-      "employee_id": "b13b91c4-8fbd-4478-8507-d2f79df3b944",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357936"
+      "employee_id": "a884be90-d700-4399-b8a2-ee2d691e9010",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213976"
     },
     {
-      "id": "u_1e71ff50-2a92-4c53-93d5-750eca52da07",
+      "id": "u_c272c179-b653-4fee-85c1-09bd1c2e6795",
       "username": "test7",
       "password": "password123",
       "full_name": "Yokeshwari V",
       "role": "Employee",
-      "employee_id": "1e71ff50-2a92-4c53-93d5-750eca52da07",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357937"
+      "employee_id": "c272c179-b653-4fee-85c1-09bd1c2e6795",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213977"
     },
     {
-      "id": "u_4fbe760e-b257-48f6-96c7-794e12e84751",
+      "id": "u_2fb918b7-8d3d-4a8e-bb70-b0dbed94f491",
       "username": "test8",
       "password": "password123",
       "full_name": "Surya Jyothi Seela",
       "role": "Employee",
-      "employee_id": "4fbe760e-b257-48f6-96c7-794e12e84751",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357938"
+      "employee_id": "2fb918b7-8d3d-4a8e-bb70-b0dbed94f491",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213978"
     },
     {
-      "id": "u_04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
+      "id": "u_835929fd-b5ba-4801-a463-9df5e49381e8",
       "username": "test9",
       "password": "password123",
       "full_name": "Balakarthikeyan B",
       "role": "Employee",
-      "employee_id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
-      "avatar": "https://i.pravatar.cc/150?u=bulk17815436357939"
+      "employee_id": "835929fd-b5ba-4801-a463-9df5e49381e8",
+      "avatar": "https://i.pravatar.cc/150?u=bulk17847898213979"
     },
     {
-      "id": "u_d6253c60-30e4-40c9-9a95-b5bcc68f12e6",
+      "id": "u_66c0973d-0098-448c-a957-f4b299c57154",
       "username": "test10",
       "password": "password123",
       "full_name": "Sivaramakrishna M",
       "role": "Employee",
-      "employee_id": "d6253c60-30e4-40c9-9a95-b5bcc68f12e6",
-      "avatar": "https://i.pravatar.cc/150?u=bulk178154363579310"
+      "employee_id": "66c0973d-0098-448c-a957-f4b299c57154",
+      "avatar": "https://i.pravatar.cc/150?u=bulk178478982139710"
     },
     {
-      "id": "u_11e361e8-c10f-46ac-aaf4-b9a6a7f075dd",
+      "id": "u_220eb4cb-8765-4f32-9f6a-d22eb237729c",
       "username": "test11",
       "password": "password123",
       "full_name": "Vinothkumar R",
       "role": "Employee",
-      "employee_id": "11e361e8-c10f-46ac-aaf4-b9a6a7f075dd",
-      "avatar": "https://i.pravatar.cc/150?u=bulk178154363579311"
-    },
-    {
-      "id": "u_E_d27df94f",
-      "username": "admin",
-      "password": "password123",
-      "full_name": "Test Admin",
-      "role": "Employee",
-      "employee_id": "E_d27df94f",
-      "avatar": ""
+      "employee_id": "220eb4cb-8765-4f32-9f6a-d22eb237729c",
+      "avatar": "https://i.pravatar.cc/150?u=bulk178478982139711"
     }
   ],
   "employees": [
     {
-      "id": "1",
-      "emp_id": "EMP1001",
-      "full_name": "Marcus Sterling",
-      "company_name": "Axxel Corp",
-      "business_unit": "Executive",
-      "department": "Executive",
-      "designation": "CEO",
-      "role_tier": 1,
-      "employment_status": "Inactive",
-      "email_official": "marcus@axxel.com",
-      "ctc_annual": 80000,
-      "ctc_currency": "INR",
-      "budget_allocated": 70000,
-      "dashboard_access": "Admin",
-      "reporting_to_id": null,
-      "photo_url": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
-      "join_date": "2026-01-01T00:00:00.000Z",
-      "history": [
-        {
-          "date": "2026-01-01T00:00:00.000Z",
-          "type": "JOINED",
-          "new_value": "Active",
-          "notes": "Joined as CEO"
-        },
-        {
-          "date": "2026-05-31T07:30:07.988Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Inactive"
-        },
-        {
-          "date": "2026-06-13T04:57:38.975Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Inactive",
-          "new_value": "Active"
-        },
-        {
-          "date": "2026-06-13T05:00:36.180Z",
-          "type": "CTC_REVISION",
-          "old_value": 3000000,
-          "new_value": 100000
-        },
-        {
-          "date": "2026-06-13T05:04:07.551Z",
-          "type": "CTC_REVISION",
-          "old_value": 100000,
-          "new_value": 80000
-        },
-        {
-          "date": "2026-06-15T15:39:45.510Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Inactive"
-        }
-      ],
-      "notice_start_date": null,
-      "replaced_employee_id": null,
-      "past_organization": "",
-      "total_experience": "",
-      "education_qualification": "",
-      "position_id": "P_66fe348f"
-    },
-    {
-      "id": "4e61d9f8-8ce0-4545-b500-a0ae70f60281",
+      "id": "e6671c3a-15b1-4bb1-acd2-6259ddbb17c6",
       "emp_id": "APS0060",
       "full_name": "Ranjit Kumar R",
       "company_name": "Axxelent",
@@ -216,7 +163,7 @@
       "budget_allocated": 1800000,
       "dashboard_access": "Manager",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357930",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213970",
       "past_organization": "Axxel Corp - 1",
       "total_experience": "10.04",
       "education_qualification": "M Pharm",
@@ -225,28 +172,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Senior Manager"
-        },
-        {
-          "date": "2026-06-15T17:59:25.924Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Combined Position"
-        },
-        {
-          "date": "2026-06-15T18:00:02.110Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Combined Position",
-          "new_value": "Active"
         }
       ],
-      "position_id": "P_df09bf7e"
+      "position_id": "P_f39fc27f"
     },
     {
-      "id": "0a30db96-8d1f-41ea-8837-8106b7d709ea",
+      "id": "ddd7121f-9bf8-4f7f-962d-93514a9fd814",
       "emp_id": "APS0110",
       "full_name": "Ghousiya S",
       "company_name": "Axxelent",
@@ -261,8 +196,8 @@
       "ctc_currency": "INR",
       "budget_allocated": 700000,
       "dashboard_access": "Employee",
-      "reporting_to_id": "4e61d9f8-8ce0-4545-b500-a0ae70f60281",
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357931",
+      "reporting_to_id": "e6671c3a-15b1-4bb1-acd2-6259ddbb17c6",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213971",
       "past_organization": "Axxel Corp - 2",
       "total_experience": "3.05",
       "education_qualification": "B Pharm",
@@ -271,16 +206,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Senior Executive"
         }
       ],
-      "position_id": "P_92a551c3"
+      "position_id": "P_7062ffff"
     },
     {
-      "id": "578cba0f-05ef-4f7d-8b39-7807001f78d8",
+      "id": "1a857ede-dd57-455d-bfd1-81ccc19ec34c",
       "emp_id": "APS0205",
       "full_name": "Sobiya M",
       "company_name": "Axxelent",
@@ -295,8 +230,8 @@
       "ctc_currency": "INR",
       "budget_allocated": 750000,
       "dashboard_access": "Manager",
-      "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357932",
+      "reporting_to_id": "e6671c3a-15b1-4bb1-acd2-6259ddbb17c6",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213972",
       "past_organization": "Axxel Corp - 3",
       "total_experience": "6.05",
       "education_qualification": "B Tech",
@@ -305,22 +240,22 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Assistant Manager"
         }
       ],
-      "position_id": "P_18582184"
+      "position_id": "P_e5e44fdf"
     },
     {
-      "id": "bb781f54-7de2-454b-b280-b3ef7254c53b",
+      "id": "bb2377cb-d458-40d0-b009-08d35ae18f2b",
       "emp_id": "APS0238",
       "full_name": "Lakshmi S",
       "company_name": "Axxelent",
       "business_unit": "R&D",
-      "department": "Development Quality Assurance",
-      "sub_function": "Rev-1",
+      "department": "Analytical Development",
+      "sub_function": "Reviwer",
       "designation": "Executive",
       "role_tier": 5,
       "employment_status": "Active",
@@ -330,7 +265,7 @@
       "budget_allocated": 450000,
       "dashboard_access": "Employee",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357933",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213973",
       "past_organization": "Axxel Corp - 4",
       "total_experience": "1.02",
       "education_qualification": "MSc",
@@ -339,32 +274,32 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Executive"
         }
       ],
-      "position_id": "370ccd10-9fcd-4c19-a465-ebcd90a3715b"
+      "position_id": "P_544964cd"
     },
     {
-      "id": "986ee626-c740-4243-a12c-b6b3a4443b1b",
+      "id": "e75fe3cd-ddfb-4951-8b83-834a682d9c39",
       "emp_id": "APS0128",
       "full_name": "Jeevitha B",
       "company_name": "Axxelent",
       "business_unit": "R&D",
       "department": "Development Quality Assurance",
-      "sub_function": "Rev-1",
+      "sub_function": "Docu - 1",
       "designation": "Senior Executive",
       "role_tier": 5,
-      "employment_status": "Inactive",
+      "employment_status": "Active",
       "email_official": "test@127",
       "ctc_annual": 569444,
       "ctc_currency": "INR",
       "budget_allocated": 594444,
       "dashboard_access": "Employee",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357934",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213974",
       "past_organization": "Axxel Corp - 5",
       "total_experience": "5.09",
       "education_qualification": "B Tech",
@@ -373,28 +308,22 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Senior Executive"
-        },
-        {
-          "date": "2026-06-28T12:18:59.794Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Inactive"
         }
       ],
-      "position_id": "P_99c71c00"
+      "position_id": "P_afcfddf7"
     },
     {
-      "id": "b5bb96e7-2fe0-48d0-8172-4808158fe41f",
+      "id": "493c7799-a525-41ec-b8a5-d0b25629c218",
       "emp_id": "APS0258",
       "full_name": "Vembuselvi T",
       "company_name": "Axxelent",
       "business_unit": "R&D",
       "department": "Development Quality Assurance",
-      "sub_function": "Rev-1",
+      "sub_function": "Docu - 1",
       "designation": "Assistant Manager",
       "role_tier": 4,
       "employment_status": "Active",
@@ -404,7 +333,7 @@
       "budget_allocated": 839279,
       "dashboard_access": "Manager",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357935",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213975",
       "past_organization": "Axxel Corp - 6",
       "total_experience": "8.05",
       "education_qualification": "B Pharm",
@@ -413,16 +342,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Assistant Manager"
         }
       ],
-      "position_id": "P_dcfdb355"
+      "position_id": "P_fcfa5677"
     },
     {
-      "id": "b13b91c4-8fbd-4478-8507-d2f79df3b944",
+      "id": "a884be90-d700-4399-b8a2-ee2d691e9010",
       "emp_id": "APS0407",
       "full_name": "Shalini K",
       "company_name": "Axxelent",
@@ -431,14 +360,14 @@
       "sub_function": "Rev-1",
       "designation": "Executive",
       "role_tier": 5,
-      "employment_status": "Resigned on Roll",
+      "employment_status": "Active",
       "email_official": "test@129",
       "ctc_annual": 420755,
       "ctc_currency": "INR",
       "budget_allocated": 445755,
       "dashboard_access": "Employee",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357936",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213976",
       "past_organization": "Axxel Corp - 7",
       "total_experience": "2.06",
       "education_qualification": "MSc",
@@ -447,46 +376,22 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Executive"
-        },
-        {
-          "date": "2026-06-15T17:56:58.384Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Frozen"
-        },
-        {
-          "date": "2026-06-15T17:57:04.005Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Frozen",
-          "new_value": "Resigned on Roll"
-        },
-        {
-          "date": "2026-06-16T04:56:42.927Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Resigned on Roll",
-          "new_value": "Under Notice Period"
-        },
-        {
-          "date": "2026-06-16T04:56:46.902Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Under Notice Period",
-          "new_value": "Resigned on Roll"
         }
       ],
-      "position_id": "9227b58f-e977-4e84-a590-3d1b8598ae1f"
+      "position_id": "P_88426782"
     },
     {
-      "id": "1e71ff50-2a92-4c53-93d5-750eca52da07",
+      "id": "c272c179-b653-4fee-85c1-09bd1c2e6795",
       "emp_id": "APS0977",
       "full_name": "Yokeshwari V",
       "company_name": "Axxelent",
       "business_unit": "R&D",
       "department": "Development Quality Assurance",
-      "sub_function": "Docu - 1",
+      "sub_function": "Rev-1",
       "designation": "Junior Executive",
       "role_tier": 5,
       "employment_status": "Active",
@@ -496,7 +401,7 @@
       "budget_allocated": 345008,
       "dashboard_access": "Employee",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357937",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213977",
       "past_organization": "Axxel Corp - 8",
       "total_experience": "2.05",
       "education_qualification": "B Pharm",
@@ -505,28 +410,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Junior Executive"
-        },
-        {
-          "date": "2026-06-15T17:56:51.924Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Replacement Joined"
-        },
-        {
-          "date": "2026-06-16T05:02:37.910Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Replacement Joined",
-          "new_value": "Active"
         }
       ],
-      "position_id": "P_77154341"
+      "position_id": "P_da0d8ac8"
     },
     {
-      "id": "4fbe760e-b257-48f6-96c7-794e12e84751",
+      "id": "2fb918b7-8d3d-4a8e-bb70-b0dbed94f491",
       "emp_id": "APS0395",
       "full_name": "Surya Jyothi Seela",
       "company_name": "Axxelent",
@@ -541,8 +434,8 @@
       "ctc_currency": "INR",
       "budget_allocated": 700000,
       "dashboard_access": "Employee",
-      "reporting_to_id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357938",
+      "reporting_to_id": "835929fd-b5ba-4801-a463-9df5e49381e8",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213978",
       "past_organization": "Axxel Corp - 9",
       "total_experience": "0",
       "education_qualification": "MSc",
@@ -551,16 +444,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Executive"
         }
       ],
-      "position_id": "P_82cf24ce"
+      "position_id": "P_97bd9df5"
     },
     {
-      "id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
+      "id": "835929fd-b5ba-4801-a463-9df5e49381e8",
       "emp_id": "APS0718",
       "full_name": "Balakarthikeyan B",
       "company_name": "Axxelent",
@@ -576,7 +469,7 @@
       "budget_allocated": 750000,
       "dashboard_access": "Employee",
       "reporting_to_id": null,
-      "photo_url": "https://i.pravatar.cc/150?u=bulk17815436357939",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk17847898213979",
       "past_organization": "Axxel Corp - 10",
       "total_experience": "11.03",
       "education_qualification": "MSc",
@@ -585,16 +478,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as AGM"
         }
       ],
-      "position_id": "P_4ddd5045"
+      "position_id": "P_3a673392"
     },
     {
-      "id": "d6253c60-30e4-40c9-9a95-b5bcc68f12e6",
+      "id": "66c0973d-0098-448c-a957-f4b299c57154",
       "emp_id": "APS0789",
       "full_name": "Sivaramakrishna M",
       "company_name": "Axxelent",
@@ -609,8 +502,8 @@
       "ctc_currency": "INR",
       "budget_allocated": 450000,
       "dashboard_access": "Employee",
-      "reporting_to_id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
-      "photo_url": "https://i.pravatar.cc/150?u=bulk178154363579310",
+      "reporting_to_id": "835929fd-b5ba-4801-a463-9df5e49381e8",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk178478982139710",
       "past_organization": "Axxel Corp - 11",
       "total_experience": "0",
       "education_qualification": "B Pharm",
@@ -619,16 +512,16 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Assistant Manager"
         }
       ],
-      "position_id": "P_f76ccb32"
+      "position_id": "P_20d0c623"
     },
     {
-      "id": "11e361e8-c10f-46ac-aaf4-b9a6a7f075dd",
+      "id": "220eb4cb-8765-4f32-9f6a-d22eb237729c",
       "emp_id": "APS0806",
       "full_name": "Vinothkumar R",
       "company_name": "Axxelent",
@@ -637,14 +530,14 @@
       "sub_function": "Reviwer",
       "designation": "Deputy Manager",
       "role_tier": 4,
-      "employment_status": "Offered Yet to Join",
+      "employment_status": "Active",
       "email_official": "test@134",
       "ctc_annual": 569444,
       "ctc_currency": "INR",
       "budget_allocated": 594444,
       "dashboard_access": "Employee",
-      "reporting_to_id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
-      "photo_url": "https://i.pravatar.cc/150?u=bulk178154363579311",
+      "reporting_to_id": "835929fd-b5ba-4801-a463-9df5e49381e8",
+      "photo_url": "https://i.pravatar.cc/150?u=bulk178478982139711",
       "past_organization": "Axxel Corp - 12",
       "total_experience": "10.02",
       "education_qualification": "MSc",
@@ -653,199 +546,20 @@
       "replaced_employee_id": null,
       "history": [
         {
-          "date": "2026-06-15T17:13:55.794Z",
+          "date": "2026-07-23T06:57:01.397Z",
           "type": "JOINED",
           "new_value": "Active",
           "notes": "Bulk imported as Deputy Manager"
-        },
-        {
-          "date": "2026-06-15T17:55:50.552Z",
-          "type": "STATUS_CHANGE",
-          "old_value": "Active",
-          "new_value": "Offered Yet to Join"
         }
       ],
-      "position_id": "P_6e678d2c"
-    },
-    {
-      "id": "E_d27df94f",
-      "emp_id": "E_d27df94f",
-      "full_name": "Test Admin",
-      "company_name": "Axxel",
-      "business_unit": "General",
-      "department": "General",
-      "designation": "New Employee",
-      "role_tier": 5,
-      "employment_status": "Active",
-      "email_official": "admin@axxel.com",
-      "ctc_annual": 0,
-      "ctc_currency": "INR",
-      "budget_allocated": 0,
-      "dashboard_access": "Employee",
-      "reporting_to_id": null,
-      "photo_url": "",
-      "join_date": "2026-06-28T18:46:05.118Z",
-      "history": [
-        {
-          "date": "2026-06-28T18:46:05.118Z",
-          "type": "JOINED",
-          "new_value": "Active",
-          "notes": "Joined as New Employee"
-        }
-      ],
-      "position_id": "P_4efcda56"
+      "position_id": "P_89c5cecd"
     }
   ],
   "appraisals": [],
   "templates": [],
-  "candidates": [
-    {
-      "id": "CAND-52302",
-      "requisition_id": "REQ-4875",
-      "first_name": "Vigneshwaran",
-      "last_name": "S",
-      "email": "vignesh27061999@gmail.com",
-      "mobile_number": "9894161917",
-      "location": "Manipal, Karnataka",
-      "highest_qualification": "M.Sc (Biotechnology)",
-      "current_company": "Navitas Life sciences",
-      "current_designation": "Scientists 1",
-      "total_experience": "4 Years",
-      "relevant_experience": "3 Years",
-      "current_ctc": 0,
-      "expected_ctc": 0,
-      "notice_period": "N/A",
-      "resume_url": "https://xeyfpuwuefbudwuxsajy.supabase.co/storage/v1/object/public/resumes/CAND-52302/resume_1782895349231.pdf",
-      "payslips_url": "",
-      "status": "Selected",
-      "applied_at": "2026-07-01T08:42:30.756Z",
-      "qualification_match": 8,
-      "experience_match": 6,
-      "industry_relevance": 8,
-      "technical_fit": 9,
-      "communication_skills": 8,
-      "salary_alignment": 5,
-      "recruiter_recommendation": "Shortlist",
-      "recruiter_remarks": "AI Evaluated and automatically Shortlisted based on resume parse.",
-      "hr_approval_status": "Approve"
-    }
-  ],
-  "questionnaires": [
-    {
-      "id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "title": "How was the day",
-      "description": "",
-      "type": "FEEDBACK",
-      "created_by": "1",
-      "status": "ACTIVE",
-      "questions": [
-        {
-          "id": "q1",
-          "type": "RATING",
-          "text": "How was your day"
-        }
-      ],
-      "created_at": "2026-06-16T05:33:34.058Z"
-    }
-  ],
-  "assignments": [
-    {
-      "id": "96d0099e-2f5d-47f8-87e8-885c9e32aca7",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "578cba0f-05ef-4f7d-8b39-7807001f78d8",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.071Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "426e0c95-26aa-403d-b8bb-7127cb33bca7",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "4e61d9f8-8ce0-4545-b500-a0ae70f60281",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.074Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "419ef93d-40c1-428c-995b-c0458dcbaff9",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "0a30db96-8d1f-41ea-8837-8106b7d709ea",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.077Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "efa70fc4-ea70-453d-96f4-8bfc7997cad6",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "bb781f54-7de2-454b-b280-b3ef7254c53b",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.079Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "0a16b1e2-3ae1-4c86-94ac-b19940396339",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "986ee626-c740-4243-a12c-b6b3a4443b1b",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.081Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "ca437b93-9b9e-4b47-91be-c03fbaff162b",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "b5bb96e7-2fe0-48d0-8172-4808158fe41f",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.083Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "fe848678-0531-45b7-a2fc-e8e0120e7bcf",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "b13b91c4-8fbd-4478-8507-d2f79df3b944",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.085Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "ec2816f1-f883-461d-9a52-d3a6c1b3a571",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "1e71ff50-2a92-4c53-93d5-750eca52da07",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.087Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "1e83c6fe-98a6-4ef9-b96c-b79d43309bfb",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "4fbe760e-b257-48f6-96c7-794e12e84751",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.089Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "db862382-b217-4d24-b346-0cd604b62e27",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "04dc9067-b3c4-42b3-b0a0-e8bb2ea93872",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.092Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "c5142903-8721-4280-8296-b2ce8617a3f1",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "d6253c60-30e4-40c9-9a95-b5bcc68f12e6",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.096Z",
-      "status": "PENDING"
-    },
-    {
-      "id": "4e166374-6147-4054-9a41-afc31c438c4f",
-      "questionnaire_id": "52428e8b-ffa8-4eeb-bcd6-46b2159e3259",
-      "employee_id": "11e361e8-c10f-46ac-aaf4-b9a6a7f075dd",
-      "assigned_by": "1",
-      "assigned_at": "2026-06-16T05:33:34.099Z",
-      "status": "PENDING"
-    }
-  ],
+  "candidates": [],
+  "questionnaires": [],
+  "assignments": [],
   "responses": [],
   "counselling_sessions": [
     {
@@ -890,27 +604,6 @@
           "text": "hi",
           "sender_id": "1",
           "timestamp": "2026-06-01T09:25:07.341Z"
-        },
-        {
-          "id": "95ed72f1-4ff9-4f8e-9ad1-9d0d6b65960d",
-          "text": "hi",
-          "sender_id": "3c7246e9-0346-4ed6-adcb-8109050d8d90",
-          "timestamp": "2026-06-13T20:36:52.612Z"
-        }
-      ]
-    },
-    {
-      "id": "1333f521-d2bf-49bb-8e4e-bf1a4ed9ff29",
-      "employee_id": "u_4",
-      "topic": "General Support",
-      "status": "OPEN",
-      "created_at": "2026-06-16T04:47:35.673Z",
-      "messages": [
-        {
-          "id": "86478d91-a3a7-4b80-86fd-47d8fe3457ce",
-          "text": "hi",
-          "sender_id": "u_4",
-          "timestamp": "2026-06-16T04:47:35.683Z"
         }
       ]
     }
@@ -918,140 +611,102 @@
   "hr_targets": {
     "target_hiring_velocity": 0,
     "target_attrition_rate": 0,
-    "departments": []
+    "departments": [
+      {
+        "department": "HR & Admin",
+        "budgeted_hc": 10,
+        "budget_allocated": 1500000,
+        "target_attrition": 10,
+        "designations": [
+          {
+            "designation": "Manager",
+            "budgeted_hc": 10,
+            "budget_allocated": 1500000
+          },
+          {
+            "designation": "Senior Executive",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          },
+          {
+            "designation": "Executive",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          },
+          {
+            "designation": "",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          }
+        ]
+      },
+      {
+        "department": "Supply Chain Management",
+        "budgeted_hc": 0,
+        "budget_allocated": 0,
+        "target_attrition": 8,
+        "designations": [
+          {
+            "designation": "AGM",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          },
+          {
+            "designation": "DGM",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          }
+        ]
+      },
+      {
+        "department": "Secretarial",
+        "budgeted_hc": 0,
+        "budget_allocated": 0,
+        "target_attrition": 15,
+        "designations": [
+          {
+            "designation": "Management Trainee",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          }
+        ]
+      },
+      {
+        "department": "Finance & Accounts",
+        "budgeted_hc": 0,
+        "budget_allocated": 0,
+        "target_attrition": 8,
+        "designations": [
+          {
+            "designation": "Assistant Manager",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          },
+          {
+            "designation": "Executive",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          },
+          {
+            "designation": "AVP",
+            "budgeted_hc": 0,
+            "budget_allocated": 0
+          }
+        ]
+      },
+      {
+        "department": "Executive",
+        "budgeted_hc": 0,
+        "budget_allocated": 0,
+        "target_attrition": 0,
+        "designations": []
+      }
+    ]
   },
-  "daily_feedbacks": [
-    {
-      "id": "0479446c-a082-4222-8b48-d3615728d1f7",
-      "employee_id": "U_AXX09",
-      "workload_rating": 3,
-      "office_environment_queries": "no",
-      "suggestions": "no",
-      "date": "2026-06-30T04:47:47.196Z"
-    }
-  ],
-  "job_requisitions": [
-    {
-      "id": "REQ-4875",
-      "position_title": "ADD",
-      "position_code": "",
-      "department": "ARD",
-      "business_unit": "",
-      "location": "IIT",
-      "position_type": "New Position",
-      "budgeted_ctc": 0,
-      "grade": "",
-      "employment_type": "Full-Time",
-      "number_of_openings": 1,
-      "required_experience": "",
-      "qualification": "",
-      "key_skills": "",
-      "job_description": "JUst\n",
-      "hiring_justification": "",
-      "expected_joining_date": "",
-      "status": "Approved",
-      "created_at": "2026-06-11T17:17:54.025Z",
-      "is_active_link": true,
-      "link_views": 0,
-      "applications_received": 8
-    }
-  ],
-  "interviews": [
-    {
-      "id": "INT-3620",
-      "type": "Face-to-Face",
-      "venue_or_link": "R&D",
-      "time": "13:04",
-      "date": "2026-06-15",
-      "candidate_id": "CAND-21478",
-      "status": "Scheduled"
-    },
-    {
-      "id": "INT-9565",
-      "candidate_id": "CAND-21511",
-      "type": "Online",
-      "platform": "MS Teams",
-      "date": "2026-06-30",
-      "time": "12:44",
-      "venue_or_link": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_cd30a67f314af5e6%40thread.v2/0?context=%7b%22Tid%22%3a%22mock-tenant-id%22%2c%22Oid%22%3a%22mock-oid%22%7d",
-      "interview_panel": [],
-      "notes": "",
-      "status": "Completed",
-      "technical_score": 1,
-      "communication_score": 4,
-      "problem_solving_score": 5,
-      "cultural_fit_score": 6,
-      "overall_recommendation": "Select"
-    },
-    {
-      "id": "INT-1097",
-      "candidate_id": "CAND-91509",
-      "type": "Online",
-      "platform": "MS Teams",
-      "date": "2026-07-01",
-      "time": "12:32",
-      "venue_or_link": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_3b55bb93a60407db%40thread.v2/0?context=%7b%22Tid%22%3a%22mock-tenant-id%22%2c%22Oid%22%3a%22mock-oid%22%7d",
-      "interview_panel": [],
-      "notes": "",
-      "status": "Completed",
-      "technical_score": 5,
-      "communication_score": 5,
-      "problem_solving_score": 5,
-      "cultural_fit_score": 8,
-      "overall_recommendation": "Select"
-    },
-    {
-      "id": "INT-9890",
-      "candidate_id": "CAND-52302",
-      "type": "Face-to-Face",
-      "date": "2026-07-10",
-      "time": "10:10",
-      "venue_or_link": "",
-      "interview_panel": [],
-      "notes": "",
-      "status": "Completed",
-      "technical_score": 10,
-      "communication_score": 2,
-      "problem_solving_score": 8,
-      "cultural_fit_score": 8,
-      "overall_recommendation": "Select"
-    },
-    {
-      "id": "INT-4244",
-      "type": "Face-to-Face",
-      "date": "2026-07-10",
-      "time": "10:10",
-      "venue_or_link": "R&D",
-      "candidate_id": "CAND-52302",
-      "status": "Scheduled"
-    }
-  ],
-  "offers": [
-    {
-      "id": "OFF-3298",
-      "offered_ctc": 500000,
-      "designation": "Executive",
-      "grade": "B2",
-      "joining_date": "2026-07-10",
-      "candidate_id": "CAND-21511",
-      "position_id": "P_d8d4d856",
-      "status": "Offer Declined",
-      "created_at": "2026-06-30T04:36:01.032Z"
-    }
-  ],
+  "daily_feedbacks": [],
   "positions": [
     {
-      "id": "P_66fe348f",
-      "title": "CEO",
-      "department": "Executive",
-      "business_unit": "Executive",
-      "reporting_to_position_id": null,
-      "status": "V",
-      "budgeted_ctc": 0,
-      "sub_function": ""
-    },
-    {
-      "id": "P_df09bf7e",
+      "id": "P_f39fc27f",
       "title": "Senior Manager",
       "department": "Analytical Development",
       "business_unit": "R&D",
@@ -1061,38 +716,38 @@
       "budgeted_ctc": 1800000
     },
     {
-      "id": "P_92a551c3",
+      "id": "P_7062ffff",
       "title": "Senior Executive",
       "department": "Analytical Development",
       "business_unit": "R&D",
       "sub_function": "Routine & Stablity",
-      "reporting_to_position_id": "P_df09bf7e",
+      "reporting_to_position_id": "P_f39fc27f",
       "status": "A",
       "budgeted_ctc": 700000
     },
     {
-      "id": "P_18582184",
+      "id": "P_e5e44fdf",
       "title": "Assistant Manager",
+      "department": "Analytical Development",
+      "business_unit": "R&D",
+      "sub_function": "Reviwer",
+      "reporting_to_position_id": "P_f39fc27f",
+      "status": "A",
+      "budgeted_ctc": 750000
+    },
+    {
+      "id": "P_544964cd",
+      "title": "Executive",
       "department": "Analytical Development",
       "business_unit": "R&D",
       "sub_function": "Reviwer",
       "reporting_to_position_id": null,
       "status": "A",
-      "budgeted_ctc": 750000
-    },
-    {
-      "id": "P_bd2c2011",
-      "title": "Junior Executive",
-      "department": "Analytical Development",
-      "business_unit": "R&D",
-      "sub_function": "Reviwer",
-      "reporting_to_position_id": null,
-      "status": "RP",
       "budgeted_ctc": 450000
     },
     {
-      "id": "P_77154341",
-      "title": "Junior Executive",
+      "id": "P_afcfddf7",
+      "title": "Senior Executive",
       "department": "Development Quality Assurance",
       "business_unit": "R&D",
       "sub_function": "Docu - 1",
@@ -1101,8 +756,8 @@
       "budgeted_ctc": 594444
     },
     {
-      "id": "P_63d92f64",
-      "title": "Executive",
+      "id": "P_fcfa5677",
+      "title": "Assistant Manager",
       "department": "Development Quality Assurance",
       "business_unit": "R&D",
       "sub_function": "Docu - 1",
@@ -1111,18 +766,18 @@
       "budgeted_ctc": 839279
     },
     {
-      "id": "P_99c71c00",
-      "title": "Senior Executive",
+      "id": "P_88426782",
+      "title": "Executive",
       "department": "Development Quality Assurance",
       "business_unit": "R&D",
       "sub_function": "Rev-1",
       "reporting_to_position_id": null,
-      "status": "V",
+      "status": "A",
       "budgeted_ctc": 445755
     },
     {
-      "id": "P_dcfdb355",
-      "title": "Assistant Manager",
+      "id": "P_da0d8ac8",
+      "title": "Junior Executive",
       "department": "Development Quality Assurance",
       "business_unit": "R&D",
       "sub_function": "Rev-1",
@@ -1131,17 +786,17 @@
       "budgeted_ctc": 345008
     },
     {
-      "id": "P_82cf24ce",
+      "id": "P_97bd9df5",
       "title": "Executive",
       "department": "Corporate Quality Assurance",
       "business_unit": "Sri City",
       "sub_function": "Documentation",
-      "reporting_to_position_id": "P_4ddd5045",
+      "reporting_to_position_id": "P_3a673392",
       "status": "A",
       "budgeted_ctc": 700000
     },
     {
-      "id": "P_4ddd5045",
+      "id": "P_3a673392",
       "title": "AGM",
       "department": "Corporate quality assurance",
       "business_unit": "Sri City",
@@ -1151,152 +806,69 @@
       "budgeted_ctc": 750000
     },
     {
-      "id": "P_f76ccb32",
+      "id": "P_20d0c623",
       "title": "Assistant Manager",
       "department": "Corporate Quality Assurance",
       "business_unit": "Sri City",
       "sub_function": "Reviwer",
-      "reporting_to_position_id": "P_4ddd5045",
+      "reporting_to_position_id": "P_3a673392",
       "status": "A",
       "budgeted_ctc": 450000
     },
     {
-      "id": "P_6e678d2c",
+      "id": "P_89c5cecd",
       "title": "Deputy Manager",
       "department": "Corporate Quality Assurance",
       "business_unit": "Sri City",
       "sub_function": "Reviwer",
-      "reporting_to_position_id": "P_4ddd5045",
-      "status": "OYJ",
+      "reporting_to_position_id": "P_3a673392",
+      "status": "A",
       "budgeted_ctc": 594444
     },
     {
-      "id": "9227b58f-e977-4e84-a590-3d1b8598ae1f",
-      "title": "Executive",
-      "department": "Development Quality Assurance",
-      "business_unit": "R&D",
-      "sub_function": "Rev-1",
-      "reporting_to_position_id": null,
-      "status": "RoR",
-      "budgeted_ctc": 420755
-    },
-    {
-      "id": "370ccd10-9fcd-4c19-a465-ebcd90a3715b",
-      "title": "Executive",
-      "department": "Development Quality Assurance",
-      "business_unit": "R&D",
-      "sub_function": "Rev-1",
-      "reporting_to_position_id": null,
-      "status": "A",
-      "budgeted_ctc": 405445
-    },
-    {
-      "id": "f7a4492a-bb84-4086-9263-00475801146e",
-      "title": "Senior Executive",
-      "department": "Development Quality Assurance",
-      "business_unit": "R&D",
-      "sub_function": "Docu - 1",
+      "id": "P_18d29b91",
+      "title": "Executive / Senior Executive – Analytical Research & Development (Review)",
+      "department": "Analytical Development",
+      "business_unit": "",
       "reporting_to_position_id": null,
       "status": "V",
-      "budgeted_ctc": 569444
-    },
-    {
-      "id": "P_4efcda56",
-      "title": "New Employee",
-      "department": "General",
-      "business_unit": "General",
-      "sub_function": "",
-      "reporting_to_position_id": null,
-      "status": "A",
-      "budgeted_ctc": 0
+      "budgeted_ctc": 240000
     }
   ],
-  "budget_exceptions": [
-    {
-      "id": "BEXC-7659",
-      "offer_id": "OFF-3298",
-      "position_id": "P_d8d4d856",
-      "department": "ARD",
-      "business_unit": "",
-      "budgeted_ctc": 0,
-      "offered_ctc": 500000,
-      "variance_amount": 500000,
-      "status": "Rejected",
-      "created_at": "2026-06-30T04:36:01.039Z"
-    }
-  ],
-  "document_templates": [
-    {
-      "id": "TPL-34442",
-      "name": "Sample_Appointment_Letter.html",
-      "type": "Offer Letter",
-      "file_type": "HTML",
-      "file_url": "https://xeyfpuwuefbudwuxsajy.supabase.co/storage/v1/object/public/resumes/TPL-34442/file_1782639079791.html",
-      "parsed_html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <style>\n        body {\n            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;\n            line-height: 1.6;\n            color: #333;\n            max-width: 800px;\n            margin: 0 auto;\n            padding: 40px;\n        }\n        .header {\n            text-align: center;\n            margin-bottom: 40px;\n            border-bottom: 2px solid #4F46E5;\n            padding-bottom: 20px;\n        }\n        .company-name {\n            font-size: 28px;\n            font-weight: bold;\n            color: #4F46E5;\n            margin: 0;\n        }\n        .document-title {\n            font-size: 20px;\n            font-weight: bold;\n            text-transform: uppercase;\n            letter-spacing: 2px;\n            margin-top: 10px;\n            color: #666;\n        }\n        .date-ref {\n            display: flex;\n            justify-content: space-between;\n            margin-bottom: 30px;\n            font-weight: bold;\n        }\n        .recipient-info {\n            margin-bottom: 30px;\n        }\n        .salutation {\n            font-weight: bold;\n            margin-bottom: 20px;\n        }\n        .content {\n            text-align: justify;\n        }\n        .highlight {\n            font-weight: bold;\n            color: #111;\n        }\n        .footer {\n            margin-top: 60px;\n        }\n        .signature-block {\n            margin-top: 40px;\n            display: flex;\n            justify-content: space-between;\n        }\n        .sign-area {\n            border-top: 1px solid #333;\n            width: 250px;\n            padding-top: 10px;\n            text-align: left;\n        }\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 20px 0;\n        }\n        table, th, td {\n            border: 1px solid #ddd;\n        }\n        th, td {\n            padding: 12px;\n            text-align: left;\n        }\n        th {\n            background-color: #f8fafc;\n        }\n    </style>\n</head>\n<body>\n\n    <div class=\"header\">\n        <h1 class=\"company-name\">Axxel Technologies Ltd.</h1>\n        <div class=\"document-title\">Appointment Order</div>\n    </div>\n\n    <div class=\"date-ref\">\n        <div>Date: {{issue_date}}</div>\n        <div>Ref: AXL/HR/{{year}}/{{reference_number}}</div>\n    </div>\n\n    <div class=\"recipient-info\">\n        <strong>To,</strong><br>\n        <span class=\"highlight\">{{candidate_name}}</span><br>\n        {{candidate_address}}<br>\n        {{candidate_city}}, {{candidate_state}} - {{candidate_zip}}\n    </div>\n\n    <div class=\"salutation\">\n        Dear {{candidate_name}},\n    </div>\n\n    <div class=\"content\">\n        <p>With reference to your application and subsequent interviews you had with us, we are pleased to appoint you as <span class=\"highlight\">{{designation}}</span> in <span class=\"highlight\">{{department}}</span> department at Axxel Technologies Ltd.</p>\n\n        <p>Your appointment is subject to the following terms and conditions:</p>\n\n        <ol>\n            <li><strong>Date of Joining:</strong> Your appointment will be effective from your date of joining, which shall not be later than <span class=\"highlight\">{{joining_date}}</span>.</li>\n            \n            <li><strong>Compensation:</strong> Your total annual Compensation Package (CTC) will be <span class=\"highlight\">₹{{annual_ctc}}</span>. The detailed breakdown of your compensation is attached in Annexure A.</li>\n            \n            <li><strong>Probation:</strong> You will be on probation for a period of <span class=\"highlight\">{{probation_period_months}} months</span> from your date of joining. Upon satisfactory completion of your probation, your employment will be confirmed in writing.</li>\n            \n            <li><strong>Posting & Transfer:</strong> Your initial posting will be at our <span class=\"highlight\">{{location}}</span> office. However, your services are liable to be transferred to any of the company's offices, departments, or subsidiaries anywhere in India or abroad.</li>\n            \n            <li><strong>Notice Period:</strong> During probation, either party may terminate this agreement by giving 15 days' notice. Post confirmation, the notice period will be <span class=\"highlight\">{{notice_period_days}} days</span> on either side.</li>\n        </ol>\n\n        <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the terms and conditions mentioned above.</p>\n\n        <p>We welcome you to the Axxel family and wish you a long and mutually beneficial association with us.</p>\n    </div>\n\n    <div class=\"footer\">\n        <p>Yours faithfully,<br>\n        <strong>For Axxel Technologies Ltd.</strong></p>\n        \n        <div class=\"signature-block\">\n            <div class=\"sign-area\">\n                <strong>{{hr_manager_name}}</strong><br>\n                Human Resources Head\n            </div>\n            \n            <div class=\"sign-area\">\n                <strong>Accepted By:</strong><br>\n                {{candidate_name}}<br>\n                Date: ________________\n            </div>\n        </div>\n    </div>\n\n</body>\n</html>\n",
-      "editable_fields": [
-        "issue_date",
-        "year",
-        "reference_number",
-        "candidate_name",
-        "candidate_address",
-        "candidate_city",
-        "candidate_state",
-        "candidate_zip",
-        "designation",
-        "department",
-        "joining_date",
-        "annual_ctc",
-        "probation_period_months",
-        "location",
-        "notice_period_days",
-        "hr_manager_name"
-      ],
-      "version": 1,
-      "active": true,
-      "created_at": "2026-06-28T09:31:20.688Z",
-      "created_by": "Admin",
-      "field_mappings": {
-        "issue_date": "system.current_date",
-        "year": "system.current_date",
-        "reference_number": "system.auto_ref",
-        "candidate_address": "emp.company_name",
-        "hr_manager_name": "system.auto_ref",
-        "joining_date": "system.current_date"
-      }
-    }
-  ],
+  "document_templates": [],
   "formula_components": [],
-  "generated_documents": [
+  "generated_documents": [],
+  "job_requisitions": [
     {
-      "id": "GEN-335842",
-      "employee_id": "1e71ff50-2a92-4c53-93d5-750eca52da07",
-      "template_id": "TPL-34442",
-      "document_name": "Sample_Appointment_Letter.html - Generated",
-      "version": 1,
-      "generated_at": "2026-06-28T10:32:32.690Z",
-      "generated_by": "Admin",
-      "status": "Final",
-      "html_content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <style>\n        body {\n            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;\n            line-height: 1.6;\n            color: #333;\n            max-width: 800px;\n            margin: 0 auto;\n            padding: 40px;\n        }\n        .header {\n            text-align: center;\n            margin-bottom: 40px;\n            border-bottom: 2px solid #4F46E5;\n            padding-bottom: 20px;\n        }\n        .company-name {\n            font-size: 28px;\n            font-weight: bold;\n            color: #4F46E5;\n            margin: 0;\n        }\n        .document-title {\n            font-size: 20px;\n            font-weight: bold;\n            text-transform: uppercase;\n            letter-spacing: 2px;\n            margin-top: 10px;\n            color: #666;\n        }\n        .date-ref {\n            display: flex;\n            justify-content: space-between;\n            margin-bottom: 30px;\n            font-weight: bold;\n        }\n        .recipient-info {\n            margin-bottom: 30px;\n        }\n        .salutation {\n            font-weight: bold;\n            margin-bottom: 20px;\n        }\n        .content {\n            text-align: justify;\n        }\n        .highlight {\n            font-weight: bold;\n            color: #111;\n        }\n        .footer {\n            margin-top: 60px;\n        }\n        .signature-block {\n            margin-top: 40px;\n            display: flex;\n            justify-content: space-between;\n        }\n        .sign-area {\n            border-top: 1px solid #333;\n            width: 250px;\n            padding-top: 10px;\n            text-align: left;\n        }\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 20px 0;\n        }\n        table, th, td {\n            border: 1px solid #ddd;\n        }\n        th, td {\n            padding: 12px;\n            text-align: left;\n        }\n        th {\n            background-color: #f8fafc;\n        }\n    </style>\n</head>\n<body>\n\n    <div class=\"header\">\n        <h1 class=\"company-name\">Axxel Technologies Ltd.</h1>\n        <div class=\"document-title\">Appointment Order</div>\n    </div>\n\n    <div class=\"date-ref\">\n        <div>Date: <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{issue_date}}</span></div>\n        <div>Ref: AXL/HR/<span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{year}}</span>/<span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{reference_number}}</span></div>\n    </div>\n\n    <div class=\"recipient-info\">\n        <strong>To,</strong><br>\n        <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_name}}</span></span><br>\n        <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_address}}</span><br>\n        <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_city}}</span>, <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_state}}</span> - <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_zip}}</span>\n    </div>\n\n    <div class=\"salutation\">\n        Dear <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_name}}</span>,\n    </div>\n\n    <div class=\"content\">\n        <p>With reference to your application and subsequent interviews you had with us, we are pleased to appoint you as <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{designation}}</span></span> in <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{department}}</span></span> department at Axxel Technologies Ltd.</p>\n\n        <p>Your appointment is subject to the following terms and conditions:</p>\n\n        <ol>\n            <li><strong>Date of Joining:</strong> Your appointment will be effective from your date of joining, which shall not be later than <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{joining_date}}</span></span>.</li>\n            \n            <li><strong>Compensation:</strong> Your total annual Compensation Package (CTC) will be <span class=\"highlight\">₹<span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{annual_ctc}}</span></span>. The detailed breakdown of your compensation is attached in Annexure A.</li>\n            \n            <li><strong>Probation:</strong> You will be on probation for a period of <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{probation_period_months}}</span> months</span> from your date of joining. Upon satisfactory completion of your probation, your employment will be confirmed in writing.</li>\n            \n            <li><strong>Posting & Transfer:</strong> Your initial posting will be at our <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{location}}</span></span> office. However, your services are liable to be transferred to any of the company's offices, departments, or subsidiaries anywhere in India or abroad.</li>\n            \n            <li><strong>Notice Period:</strong> During probation, either party may terminate this agreement by giving 15 days' notice. Post confirmation, the notice period will be <span class=\"highlight\"><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{notice_period_days}}</span> days</span> on either side.</li>\n        </ol>\n\n        <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the terms and conditions mentioned above.</p>\n\n        <p>We welcome you to the Axxel family and wish you a long and mutually beneficial association with us.</p>\n    </div>\n\n    <div class=\"footer\">\n        <p>Yours faithfully,<br>\n        <strong>For Axxel Technologies Ltd.</strong></p>\n        \n        <div class=\"signature-block\">\n            <div class=\"sign-area\">\n                <strong><span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{hr_manager_name}}</span></strong><br>\n                Human Resources Head\n            </div>\n            \n            <div class=\"sign-area\">\n                <strong>Accepted By:</strong><br>\n                <span class=\"bg-indigo-100 text-indigo-800 px-1 rounded\">{{candidate_name}}</span><br>\n                Date: ________________\n            </div>\n        </div>\n    </div>\n\n</body>\n</html>\n",
-      "field_values": {}
-    },
-    {
-      "id": "GEN-302575",
-      "employee_id": "4e61d9f8-8ce0-4545-b500-a0ae70f60281",
-      "template_id": "TPL-34442",
-      "document_name": "Sample_Appointment_Letter.html - Ranjit Kumar R",
-      "version": 1,
-      "generated_at": "2026-07-02T05:17:32.857Z",
-      "generated_by": "Admin",
-      "status": "Final",
-      "html_content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <style>\n        body {\n            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;\n            line-height: 1.6;\n            color: #333;\n            max-width: 800px;\n            margin: 0 auto;\n            padding: 40px;\n        }\n        .header {\n            text-align: center;\n            margin-bottom: 40px;\n            border-bottom: 2px solid #4F46E5;\n            padding-bottom: 20px;\n        }\n        .company-name {\n            font-size: 28px;\n            font-weight: bold;\n            color: #4F46E5;\n            margin: 0;\n        }\n        .document-title {\n            font-size: 20px;\n            font-weight: bold;\n            text-transform: uppercase;\n            letter-spacing: 2px;\n            margin-top: 10px;\n            color: #666;\n        }\n        .date-ref {\n            display: flex;\n            justify-content: space-between;\n            margin-bottom: 30px;\n            font-weight: bold;\n        }\n        .recipient-info {\n            margin-bottom: 30px;\n        }\n        .salutation {\n            font-weight: bold;\n            margin-bottom: 20px;\n        }\n        .content {\n            text-align: justify;\n        }\n        .highlight {\n            font-weight: bold;\n            color: #111;\n        }\n        .footer {\n            margin-top: 60px;\n        }\n        .signature-block {\n            margin-top: 40px;\n            display: flex;\n            justify-content: space-between;\n        }\n        .sign-area {\n            border-top: 1px solid #333;\n            width: 250px;\n            padding-top: 10px;\n            text-align: left;\n        }\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 20px 0;\n        }\n        table, th, td {\n            border: 1px solid #ddd;\n        }\n        th, td {\n            padding: 12px;\n            text-align: left;\n        }\n        th {\n            background-color: #f8fafc;\n        }\n    </style>\n</head>\n<body>\n\n    <div class=\"header\">\n        <h1 class=\"company-name\">Axxel Technologies Ltd.</h1>\n        <div class=\"document-title\">Appointment Order</div>\n    </div>\n\n    <div class=\"date-ref\">\n        <div>Date: 02 July 2026</div>\n        <div>Ref: AXL/HR/02 July 2026/REF/HR/2026/6369</div>\n    </div>\n\n    <div class=\"recipient-info\">\n        <strong>To,</strong><br>\n        <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_name}}</span></span><br>\n        Axxelent<br>\n        <span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_city}}</span>, <span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_state}}</span> - <span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_zip}}</span>\n    </div>\n\n    <div class=\"salutation\">\n        Dear <span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_name}}</span>,\n    </div>\n\n    <div class=\"content\">\n        <p>With reference to your application and subsequent interviews you had with us, we are pleased to appoint you as <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{designation}}</span></span> in <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{department}}</span></span> department at Axxel Technologies Ltd.</p>\n\n        <p>Your appointment is subject to the following terms and conditions:</p>\n\n        <ol>\n            <li><strong>Date of Joining:</strong> Your appointment will be effective from your date of joining, which shall not be later than <span class=\"highlight\">02 July 2026</span>.</li>\n            \n            <li><strong>Compensation:</strong> Your total annual Compensation Package (CTC) will be <span class=\"highlight\">₹<span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{annual_ctc}}</span></span>. The detailed breakdown of your compensation is attached in Annexure A.</li>\n            \n            <li><strong>Probation:</strong> You will be on probation for a period of <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{probation_period_months}}</span> months</span> from your date of joining. Upon satisfactory completion of your probation, your employment will be confirmed in writing.</li>\n            \n            <li><strong>Posting & Transfer:</strong> Your initial posting will be at our <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{location}}</span></span> office. However, your services are liable to be transferred to any of the company's offices, departments, or subsidiaries anywhere in India or abroad.</li>\n            \n            <li><strong>Notice Period:</strong> During probation, either party may terminate this agreement by giving 15 days' notice. Post confirmation, the notice period will be <span class=\"highlight\"><span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{notice_period_days}}</span> days</span> on either side.</li>\n        </ol>\n\n        <p>Please sign and return the duplicate copy of this letter as a token of your acceptance of the terms and conditions mentioned above.</p>\n\n        <p>We welcome you to the Axxel family and wish you a long and mutually beneficial association with us.</p>\n    </div>\n\n    <div class=\"footer\">\n        <p>Yours faithfully,<br>\n        <strong>For Axxel Technologies Ltd.</strong></p>\n        \n        <div class=\"signature-block\">\n            <div class=\"sign-area\">\n                <strong>REF/HR/2026/8956</strong><br>\n                Human Resources Head\n            </div>\n            \n            <div class=\"sign-area\">\n                <strong>Accepted By:</strong><br>\n                <span style=\"background:#e0e7ff;color:#4338ca;padding:0 4px;border-radius:4px;\">{{candidate_name}}</span><br>\n                Date: ________________\n            </div>\n        </div>\n    </div>\n\n</body>\n</html>\n\n      <div style=\"page-break-inside:avoid;margin-top:32px;\">\n        <h3 style=\"font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;border-bottom:2px solid #6366f1;padding-bottom:4px;\">CTC Structure</h3>\n        <table style=\"width:100%;border-collapse:collapse;font-size:12px;\">\n          <thead>\n            <tr style=\"background:#6366f1;color:#fff;\">\n              <th style=\"padding:8px 10px;text-align:left;\">Component</th>\n              <th style=\"padding:8px 10px;text-align:right;\">Monthly</th>\n              <th style=\"padding:8px 10px;text-align:right;\">Annual</th>\n            </tr>\n          </thead>\n          <tbody>\n            <tr><td colspan=\"3\" style=\"padding:4px 10px;background:#f8fafc;font-size:10px;font-weight:700;letter-spacing:.05em;color:#64748b;border:1px solid #e2e8f0;\">A. EARNINGS</td></tr>\n            \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">Basic</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹15,000</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹1,80,000</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">HRA</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹3,036</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹36,432</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">Special Allowance</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹0</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹0</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">Conveyance (CA)</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹-0</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹-0</td>\n      </tr>\n    \n            \n      <tr style=\"background:#f0f9ff;font-weight:700;\">\n        <td style=\"padding:8px 10px;border:1px solid #e2e8f0;\">Gross Monthly Salary</td>\n        <td style=\"padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹18,036</td>\n        <td style=\"padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹2,16,432</td>\n      </tr>\n            <tr><td colspan=\"3\" style=\"padding:4px 10px;background:#f8fafc;font-size:10px;font-weight:700;letter-spacing:.05em;color:#64748b;border:1px solid #e2e8f0;\">B. EMPLOYER CONTRIBUTIONS</td></tr>\n            \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">EPF</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹1,800</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹21,600</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">ESI</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹488</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹5,856</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">Ex-Gratia</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹833</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹9,996</td>\n      </tr>\n    \n      <tr>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;\">Bonus Adj</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹410</td>\n        <td style=\"padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-family:monospace;\">₹4,920</td>\n      </tr>\n    \n          </tbody>\n          <tfoot>\n            <tr style=\"background:#1e293b;color:#fff;font-weight:700;\">\n              <td style=\"padding:10px;border:1px solid #334155;\">Total Annual CTC</td>\n              <td style=\"padding:10px;border:1px solid #334155;text-align:right;font-family:monospace;\">₹21,567/mo</td>\n              <td style=\"padding:10px;border:1px solid #334155;text-align:right;font-family:monospace;\">₹2,58,804</td>\n            </tr>\n          </tfoot>\n        </table>\n      </div>\n    ",
-      "field_values": {
-        "issue_date": "02 July 2026",
-        "year": "02 July 2026",
-        "reference_number": "REF/HR/2026/6369",
-        "candidate_address": "Axxelent",
-        "joining_date": "02 July 2026",
-        "hr_manager_name": "REF/HR/2026/8956"
-      }
+      "id": "REQ-9641",
+      "position_title": "Executive / Senior Executive – Analytical Research & Development (Review)",
+      "position_code": "",
+      "department": "Analytical Development",
+      "business_unit": "",
+      "location": "IITM ,Taramani",
+      "position_type": "New Position",
+      "budgeted_ctc": "240000",
+      "grade": "",
+      "employment_type": "Full-Time",
+      "number_of_openings": "1",
+      "required_experience": "",
+      "qualification": "",
+      "key_skills": "",
+      "job_description": "Executive / Senior Executive – Analytical Research & Development (Review)\r\n\r\nCompany: Axxelent Pharma Science Private Limited\r\nDepartment: Analytical Research & Development (ARD) – Review\r\nLocation: R&D Unit, IIT Madras Research Park, Taramani, Chennai\r\nDesignation: Executive / Senior Executive\r\nEmployment Type: Full-Time\r\n\r\nAbout the Role\r\n\r\nAxxelent Pharma Science Pvt. Ltd. is seeking an experienced and detail-oriented Executive / Senior Executive – Analytical Research & Development (Review) to join our Analytical R&D team. The role is responsible for reviewing analytical documents, ensuring data integrity, regulatory compliance, and supporting the development team by providing technical review and guidance throughout the product development lifecycle.\r\n\r\nKey Responsibilities\r\nReview analytical methods, protocols, reports, raw data, and technical documentation for accuracy, completeness, and compliance.\r\nVerify analytical calculations, chromatograms, spectra, and laboratory records.\r\nEvaluate experimental results, trends, out-of-specification (OOS), out-of-trend (OOT), and deviations.\r\nEnsure compliance with ALCOA+ principles and Data Integrity requirements.\r\nReview analytical method validation, method transfer, verification, stability, and routine analytical reports.\r\nEnsure compliance with cGMP, GLP, ICH, USFDA, EU GMP, MHRA, WHO, and other applicable regulatory guidelines.\r\nIdentify documentation gaps and provide constructive feedback to analytical scientists.\r\nSupport investigations related to laboratory deviations, OOS, OOT, CAPA, and change controls.\r\nEnsure proper documentation, traceability, and archival of analytical records.\r\nCollaborate with Formulation Development, Quality Assurance, Regulatory Affairs, and other cross-functional teams.\r\nParticipate in internal and external audits by providing analytical documentation and technical support.\r\nContribute to continuous improvement initiatives to enhance laboratory documentation and review processes.\r\nRequired Qualifications\r\nM.Pharm (Pharmaceutical Analysis / Quality Assurance / Pharmaceutics)\r\nB.Pharm\r\nM.Sc. Chemistry / Analytical Chemistry / Organic Chemistry\r\nExperience\r\n4–7 years of relevant experience in:\r\nAnalytical Research & Development\r\nAnalytical Review\r\nQuality Control Review\r\nPharmaceutical R&D Documentation Review\r\nRequired Technical Skills\r\nHPLC, UPLC, GC, UV, FTIR, Dissolution, KF, TOC, ICP-MS (preferred)\r\nAnalytical Method Development & Validation\r\nMethod Transfer & Verification\r\nStability Studies\r\nDocumentation Review\r\nData Integrity (ALCOA+)\r\ncGMP / GLP Documentation\r\nOOS / OOT Investigation\r\nChange Control & CAPA\r\nTechnical Report Review\r\nICH Guidelines (Q2, Q3, Q6, Q8, Q9, Q10)\r\nUSFDA, MHRA, WHO, EU GMP regulatory expectations\r\nDesired Competencies\r\nStrong analytical and critical thinking skills.\r\nExcellent attention to detail.\r\nEffective documentation review and interpretation.\r\nGood communication and interpersonal skills.\r\nAbility to work independently and within cross-functional teams.\r\nProblem-solving mindset with a focus on quality and compliance.\r\nTime management and prioritization skills.\r\nPreferred Experience\r\n\r\nCandidates with prior experience in any of the following will have an added advantage:\r\n\r\nInjectable dosage forms\r\nOral solid dosage forms\r\nSemi-solid formulations\r\nRegulatory audit exposure\r\nContract Development & Manufacturing Organization (CDMO)\r\nAnalytical review for global regulatory submissions\r\nWhy Join Axxelent Pharma Science?\r\nOpportunity to work on global pharmaceutical development projects.\r\nExposure to advanced analytical technologies and regulatory standards.\r\nCollaborative and innovation-driven work culture.\r\nCareer growth in a fast-growing CDMO environment.\r\nContinuous learning and professional development opportunities.\r\nWork Location\r\n\r\nAxxelent Pharma Science Pvt. Ltd.\r\nR&D Unit, IIT Madras Research Park\r\nKanagam Road, Taramani\r\nChennai – 600113\r\n\r\nApply Now\r\n\r\nInterested candidates may share their updated resume to:\r\n\r\nEmail: corpHR@axxelent.com / vrpradeep@axxelent.com\r\n\r\nWhatsApp: +91 95005 93997 / +91 97890 98123",
+      "hiring_justification": "",
+      "expected_joining_date": "",
+      "reporting_manager_id": "APS0205",
+      "jd_url": "",
+      "poster_url": "https://xeyfpuwuefbudwuxsajy.supabase.co/storage/v1/object/public/resumes/REQ-9641/poster_file_1784877978493.png",
+      "position_id": "P_18d29b91",
+      "status": "Approved",
+      "created_at": "2026-07-24T07:26:19.927Z",
+      "is_active_link": true,
+      "link_views": 0,
+      "applications_received": 0
     }
-  ]
+  ],
+  "interviews": [],
+  "offers": [],
+  "budget_exceptions": []
 }

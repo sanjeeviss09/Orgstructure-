@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Employee, Position, DEFAULT_AVATAR, fetchTargets, HRTargets } from '../lib/api';
+import { Employee, Position, DEFAULT_AVATAR, fetchTargets, HRTargets, createPosition, updatePosition, deletePosition, updateEmployee } from '../lib/api';
 import type { Role } from '../App';
 import { X, Mail, Users, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Search, Building2, Tag, Filter, Download, Eye, EyeOff, FileSpreadsheet, GitBranch } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -119,57 +119,40 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
       setDropSuccessNodeId(dropNodeId);
       setTimeout(() => setDropSuccessNodeId(null), 600);
       
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       let targetPositionId = newPosition.id;
 
-      const empRes = await fetch(`${API_BASE}/api/employees/${empId}`);
-      let oldPositionId: string | null = null;
-      if (empRes.ok) {
-        const empData = await empRes.json();
-        oldPositionId = empData.position_id;
-      }
+      const empData = employees.find(e => e.id === empId);
+      let oldPositionId: string | null = empData?.position_id ?? null;
 
       if (action === 'under') {
         if (oldPositionId) {
           // Update the existing position to move it under the new manager
-          await fetch(`${API_BASE}/api/positions/${oldPositionId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reporting_to_position_id: newPosition.id,
-              department: newPosition.department,
-              business_unit: newPosition.business_unit,
-              sub_function: newPosition.sub_function || ''
-            })
+          await updatePosition(oldPositionId, {
+            reporting_to_position_id: newPosition.id,
+            department: newPosition.department,
+            business_unit: newPosition.business_unit,
+            sub_function: newPosition.sub_function || ''
           });
           targetPositionId = oldPositionId;
         } else {
           // Fallback if no position exists
-          const empData = (await empRes.json());
-          const newPosRes = await fetch(`${API_BASE}/api/positions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: empData.designation || 'New Role',
-              department: newPosition.department,
-              business_unit: newPosition.business_unit,
-              sub_function: newPosition.sub_function || '',
-              reporting_to_position_id: newPosition.id,
-              status: 'A',
-              budgeted_ctc: empData.ctc_annual || 0
-            })
+          const newPos = await createPosition({
+            title: empData?.designation || 'New Role',
+            department: newPosition.department,
+            business_unit: newPosition.business_unit,
+            sub_function: newPosition.sub_function || '',
+            reporting_to_position_id: newPosition.id,
+            status: 'A',
+            budgeted_ctc: empData?.ctc_annual || 0
           });
-          if (newPosRes.ok) {
-            const newPosData = await newPosRes.json();
-            targetPositionId = newPosData.position?.id || newPosData.id;
-          }
+          targetPositionId = newPos.id;
         }
       } else if (action === 'merge') {
         targetPositionId = newPosition.id;
         // The old position is now vacant for this employee.
         // We will call an endpoint to clean it up if empty, or do it on the backend.
         if (oldPositionId && oldPositionId !== targetPositionId) {
-           await fetch(`${API_BASE}/api/positions/${oldPositionId}/cleanup`, { method: 'DELETE' }).catch(() => {});
+           await deletePosition(oldPositionId).catch(() => {});
         }
       }
 
@@ -181,12 +164,8 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
         reporting_to_id: null
       };
       
-      const res = await fetch(`${API_BASE}/api/employees/${empId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      if (res.ok && onRefresh) {
+      await updateEmployee(empId, updateData);
+      if (onRefresh) {
         onRefresh();
       }
     } catch (e) {
@@ -248,11 +227,13 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
   const [search, setSearch] = useState('');
   const [buFilter, setBuFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
+  const [subFuncFilter, setSubFuncFilter] = useState('');
 
   const canCTC = ['Admin', 'Management', 'HOD'].includes(activeRole);
 
   const businessUnits = useMemo(() => [...new Set(employees.map(e => e.business_unit).filter(Boolean))].sort(), [employees]);
   const departments = useMemo(() => [...new Set(employees.map(e => e.department).filter(Boolean))].sort(), [employees]);
+  const subFunctions = useMemo(() => [...new Set(positions.map(p => p.sub_function).filter(Boolean))].sort(), [positions]);
 
   useEffect(() => {
     fetchTargets().then(setTargets).catch(console.error);
@@ -598,7 +579,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
   const getReports = (emp: Employee) => employees.filter(x => x.reporting_to_id === emp.id);
 
   // Filtering Logic
-  const hasActiveFilter = search.trim() !== '' || buFilter !== '' || deptFilter !== '';
+  const hasActiveFilter = search.trim() !== '' || buFilter !== '' || deptFilter !== '' || subFuncFilter !== '';
 
   const isMatch = (n: PositionNode) => {
     if (!hasActiveFilter) return true;
@@ -606,7 +587,8 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
     const matchS = !s || n.position.title.toLowerCase().includes(s) || n.occupants.some(o => o.full_name.toLowerCase().includes(s));
     const matchBU = !buFilter || n.position.business_unit === buFilter;
     const matchD = !deptFilter || n.position.department === deptFilter;
-    return matchS && matchBU && matchD;
+    const matchSF = !subFuncFilter || n.position.sub_function === subFuncFilter;
+    return matchS && matchBU && matchD && matchSF;
   };
 
   // Pre-calculate matches and their ancestors so we can auto-expand paths to matches
@@ -720,9 +702,19 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
           {departments.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
 
+        {subFunctions.length > 0 && (
+          <select 
+            value={subFuncFilter} onChange={e => setSubFuncFilter(e.target.value)}
+            className="w-40 px-3 py-2 bg-slate-100/50 hover:bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white rounded-xl text-sm font-medium text-slate-800 outline-none cursor-pointer transition-all appearance-none"
+          >
+            <option value="">All Sub Functions</option>
+            {subFunctions.map(sf => <option key={sf} value={sf}>{sf}</option>)}
+          </select>
+        )}
+
         {(hasActiveFilter) && (
           <button 
-            onClick={() => { setSearch(''); setBuFilter(''); setDeptFilter(''); }}
+            onClick={() => { setSearch(''); setBuFilter(''); setDeptFilter(''); setSubFuncFilter(''); }}
             className="p-2 ml-1 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl transition-colors"
             title="Clear filters"
           >
@@ -842,6 +834,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
                     showCTC={showCTC}
                     canCTC={canCTC}
                     layoutMode={layoutMode}
+                    targets={targets}
                     draggingEmpId={draggingEmpId}
                     setDraggingEmpId={setDraggingEmpId}
                     dragOverNodeId={dragOverNodeId}
@@ -891,6 +884,7 @@ export const OrgChart: React.FC<OrgChartProps> = ({ employees, positions, active
           showCTC={showCTC}
           canCTC={canCTC}
           layoutMode={layoutMode}
+          targets={targets}
         />
       </div>
 
@@ -1065,6 +1059,7 @@ interface TreeSharedProps {
   showCTC?: boolean;
   canCTC?: boolean;
   layoutMode: 'tree' | 'mindmap';
+  targets?: HRTargets | null;
   // Drag & Drop
   draggingEmpId?: string | null;
   setDraggingEmpId?: (id: string | null) => void;
@@ -1331,6 +1326,25 @@ const OrgTreeNode: React.FC<TreeSharedProps & { node: PositionNode }> = (props) 
               </div>
             );
           })}
+          
+          {/* Virtual node specific details */}
+          {isVirtualNode && position.title === 'Department' && props.canCTC && props.showCTC && (() => {
+            const deptTarget = props.targets?.departments.find(d => 
+              d.department.toLowerCase() === position.department?.toLowerCase() && 
+              (d.business_unit || '').toLowerCase() === (position.business_unit || '').toLowerCase()
+            );
+            if (deptTarget) {
+              return (
+                <div className="mt-2 pt-2 border-t border-indigo-200/50 flex flex-col gap-0.5">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="font-semibold text-indigo-700/80">Dept Budget:</span>
+                    <span className="font-black text-indigo-900">{fmtCTC(deptTarget.budget_allocated)}</span>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
       )}
 

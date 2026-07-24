@@ -197,6 +197,7 @@ export interface JobRequisition {
   hiring_justification: string;
   expected_joining_date: string;
   jd_url?: string;
+  poster_url?: string;
   status: 'Pending HR' | 'Pending Finance' | 'Pending Final' | 'Approved' | 'Rejected';
   created_at: string;
   is_active_link: boolean;
@@ -362,6 +363,11 @@ interface DB {
 
 const syncUsersWithEmployees = (db: DB): DB => {
   const newUsers: User[] = [];
+  const existingUsernames = new Set<string>();
+  
+  // Preserve non-employee users
+  const nonEmployeeUsers = (db.users || []).filter(u => !u.employee_id);
+  nonEmployeeUsers.forEach(u => existingUsernames.add(u.username));
   
   db.employees.forEach(emp => {
     let username = 'user';
@@ -374,10 +380,11 @@ const syncUsersWithEmployees = (db: DB): DB => {
 
     let uniqueUsername = username;
     let counter = 1;
-    while (newUsers.some(u => u.username === uniqueUsername)) {
+    while (existingUsernames.has(uniqueUsername)) {
       uniqueUsername = `${username}${counter}`;
       counter++;
     }
+    existingUsernames.add(uniqueUsername);
 
     newUsers.push({
       id: `u_${emp.id}`,
@@ -390,8 +397,6 @@ const syncUsersWithEmployees = (db: DB): DB => {
     });
   });
 
-  // Preserve non-employee users
-  const nonEmployeeUsers = (db.users || []).filter(u => !u.employee_id);
   db.users = [...nonEmployeeUsers, ...newUsers];
   return db;
 };
@@ -399,6 +404,8 @@ const syncUsersWithEmployees = (db: DB): DB => {
 const syncPositionsWithEmployees = (db: DB): DB => {
   if (!db.positions) db.positions = [];
   const existingPosIds = new Set(db.positions.map(p => p.id));
+  const posMap = new Map(db.positions.map(p => [p.id, p]));
+  const empIdToEmployee = new Map(db.employees.map(e => [e.id, e]));
   
   db.employees.forEach(emp => {
     let posStatus: PositionStatus = 'A';
@@ -413,7 +420,7 @@ const syncPositionsWithEmployees = (db: DB): DB => {
       
       let reporting_to_position_id: string | null = null;
       if (emp.reporting_to_id) {
-        const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+        const mgr = empIdToEmployee.get(emp.reporting_to_id);
         if (mgr) {
           if (!mgr.position_id) {
             mgr.position_id = `P_${crypto.randomUUID().substring(0, 8)}`;
@@ -422,7 +429,7 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         }
       }
       
-      db.positions.push({
+      const newPos: Position = {
         id: posId,
         title: emp.designation || 'Unknown Role',
         department: emp.department || '',
@@ -431,10 +438,12 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         reporting_to_position_id,
         status: posStatus,
         budgeted_ctc: 0
-      });
+      };
+      db.positions.push(newPos);
+      posMap.set(posId, newPos);
       existingPosIds.add(posId);
     } else {
-      const pos = db.positions.find(p => p.id === emp.position_id);
+      const pos = posMap.get(emp.position_id);
       if (pos) {
         pos.status = posStatus;
         pos.title = emp.designation || pos.title;
@@ -443,12 +452,10 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         pos.sub_function = emp.sub_function || pos.sub_function;
         
         if (emp.reporting_to_id) {
-          const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+          const mgr = empIdToEmployee.get(emp.reporting_to_id);
           if (mgr && mgr.position_id) {
             pos.reporting_to_position_id = mgr.position_id;
           }
-        } else {
-          pos.reporting_to_position_id = null;
         }
       }
     }
@@ -540,11 +547,22 @@ const readDb = (): DB => {
   return db;
 };
 
-const writeDb = (db: DB): void => {
-  let syncedDb = syncPositionsWithEmployees(db);
-  syncedDb = syncUsersWithEmployees(syncedDb);
+let writeTimeout: NodeJS.Timeout | null = null;
+
+const writeDb = (db: DB, skipSync = false): void => {
+  let syncedDb = db;
+  if (!skipSync) {
+    syncedDb = syncPositionsWithEmployees(db);
+    syncedDb = syncUsersWithEmployees(syncedDb);
+  }
   cachedDb = syncedDb;
-  fs.writeFileSync(DB_PATH, JSON.stringify(syncedDb, null, 2), 'utf-8');
+  
+  if (writeTimeout) clearTimeout(writeTimeout);
+  writeTimeout = setTimeout(() => {
+    fs.writeFile(DB_PATH, JSON.stringify(syncedDb, null, 2), 'utf-8', (err) => {
+      if (err) console.error('Failed to write db.json asynchronously:', err);
+    });
+  }, 50);
 };
 
 // User operations
@@ -756,12 +774,14 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
     if (data.employment_status === 'Resigned on Roll' && !data.notice_start_date && !existing.notice_start_date) {
       data.notice_start_date = new Date().toISOString();
     }
+  }
 
-    // Update the position's status as well
-    if (existing.position_id) {
-      if (!db.positions) db.positions = [];
-      const posIdx = db.positions.findIndex(p => p.id === existing.position_id);
-      if (posIdx !== -1) {
+  // Sync Position status and other attributes
+  if (existing.position_id) {
+    if (!db.positions) db.positions = [];
+    const posIdx = db.positions.findIndex(p => p.id === existing.position_id);
+    if (posIdx !== -1) {
+      if (data.employment_status !== undefined) {
         let posStatus: import('./database').PositionStatus = 'A';
         if (data.employment_status === 'Resigned on Roll') posStatus = 'RoR';
         else if (data.employment_status === 'Replacement Joined') posStatus = 'RP';
@@ -770,6 +790,19 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
         else if (data.employment_status === 'Under Notice Period') posStatus = 'RoR';
         else if (data.employment_status === 'Active') posStatus = 'A';
         db.positions[posIdx].status = posStatus;
+      }
+      
+      if (data.department !== undefined) db.positions[posIdx].department = data.department;
+      if (data.business_unit !== undefined) db.positions[posIdx].business_unit = data.business_unit;
+      if (data.sub_function !== undefined) db.positions[posIdx].sub_function = data.sub_function;
+      if (data.designation !== undefined) db.positions[posIdx].title = data.designation;
+      if (data.reporting_to_id !== undefined) {
+        const mgr = db.employees.find(e => e.id === data.reporting_to_id);
+        if (mgr && mgr.position_id) {
+          db.positions[posIdx].reporting_to_position_id = mgr.position_id;
+        } else if (data.reporting_to_id === null) {
+          db.positions[posIdx].reporting_to_position_id = null;
+        }
       }
     }
   }
@@ -924,7 +957,7 @@ export const getDailyFeedbacks = (): DailyFeedback[] => readDb().daily_feedbacks
 export const addDailyFeedback = (f: DailyFeedback): DailyFeedback => {
   const db = readDb();
   db.daily_feedbacks.push(f);
-  writeDb(db);
+  writeDb(db, true);
   return f;
 };
 

@@ -9,6 +9,7 @@
     "build": "tsc && node -e \"const fs=require('fs'); fs.mkdirSync('dist/data', {recursive:true}); fs.copyFileSync('src/data/db.json', 'dist/data/db.json'); fs.copyFileSync('src/data/db_seed.json', 'dist/data/db_seed.json');\""
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@supabase/supabase-js": "^2.39.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -31,6 +32,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/ws": "^8.18.1",
     "nodemon": "^3.0.2",
+    "prisma": "^6.19.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

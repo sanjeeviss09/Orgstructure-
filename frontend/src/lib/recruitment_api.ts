@@ -23,6 +23,7 @@ export interface JobRequisition {
   expected_joining_date: string;
   status: 'Pending HR' | 'Pending Finance' | 'Pending Final' | 'Approved' | 'Rejected';
   created_at: string;
+  poster_url?: string;
   is_active_link: boolean;
   link_views: number;
   applications_received: number;

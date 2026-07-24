@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Loader2, RotateCcw, ArrowRight, Paperclip } from 'lucide-react';
+import { Send, X, Bot, Loader2, RotateCcw, ArrowRight, Paperclip, Brain, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AuthUser, Employee } from '../../lib/api';
@@ -53,7 +53,7 @@ const renderMessage = (text: string, isUser: boolean): React.ReactNode => {
           table: ({node, ...props}) => <div style={{ overflowX: 'auto', margin: '8px 0', borderRadius: 10, border: '1px solid #e2e8f0' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }} {...props} /></div>,
           thead: ({node, ...props}) => <thead style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }} {...props} />,
           th: ({node, ...props}) => <th style={{ padding: '7px 10px', color: 'white', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap' }} {...props} />,
-          td: ({node, ...props}) => <td style={{ padding: '6px 10px', color: '#1e293b', fontWeight: 500, borderBottom: '1px solid #f1f5f9' }} {...props} />,
+          td: ({node, ...props}) => <td style={{ padding: '6px 10px', color: '#1e293b', fontWeight: 500, borderBottom: '1px solid #f1f5f9', wordBreak: 'normal', minWidth: '100px' }} {...props} />,
           p: ({node, ...props}) => <p style={{ margin: '4px 0' }} {...props} />,
           ul: ({node, ...props}) => <ul style={{ margin: '6px 0', paddingLeft: 20 }} {...props} />,
           li: ({node, ...props}) => <li style={{ marginBottom: 4 }} {...props} />,
@@ -75,6 +75,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [memoryRestored, setMemoryRestored] = useState(false);
+  const [memoryCount, setMemoryCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -82,12 +84,57 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const hour = new Date().getHours();
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
     const name = user.full_name?.split(' ')[0] || 'there';
-    setMessages([{
+    const userId = user.id || user.username || 'anonymous';
+
+    const introMsg: Message = {
       id: 'intro',
       role: 'aira',
       text: `${greet}, ${name}! 👋 I'm Aira, your enterprise AI companion.\n\nI can help you with HR workflows, recruitment, org structure, CTC in **₹ (INR)**, and much more.\n\nWhat can I do for you today?`,
       ts: Date.now()
-    }]);
+    };
+
+    // Restore past conversation from neural brain memory
+    const restoreMemory = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/ai-companion/history/${encodeURIComponent(userId)}?limit=10`);
+        if (!res.ok) {
+          setMessages([introMsg]);
+          return;
+        }
+        const data = await res.json();
+        const rawHistory: Array<{ id: number; user_msg: string; ai_reply: string; ts: number }> = data.history || [];
+
+        if (rawHistory.length === 0) {
+          setMessages([introMsg]);
+        } else {
+          // Convert raw DB records → Message[] in chronological order
+          const restored: Message[] = [introMsg];
+          [...rawHistory].reverse().forEach((entry) => {
+            restored.push({
+              id: `mem-u-${entry.id}`,
+              role: 'user',
+              text: entry.user_msg,
+              ts: entry.ts * 1000
+            });
+            restored.push({
+              id: `mem-a-${entry.id}`,
+              role: 'aira',
+              text: entry.ai_reply,
+              ts: entry.ts * 1000 + 1
+            });
+          });
+          setMessages(restored);
+          setMemoryRestored(true);
+          setMemoryCount(rawHistory.length);
+          // Auto-hide the memory badge after 5 seconds
+          setTimeout(() => setMemoryRestored(false), 5000);
+        }
+      } catch {
+        setMessages([introMsg]);
+      }
+    };
+
+    restoreMemory();
     inputRef.current?.focus();
   }, []);
 
@@ -132,7 +179,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           role: user.role,
           activeTab,
           context: buildContext(),
-          history: messages.slice(-6).map(m => ({ role: m.role === 'aira' ? 'assistant' : 'user', content: m.text }))
+          history: messages.slice(-6).map(m => ({ role: m.role === 'aira' ? 'assistant' : 'user', content: m.text })),
+          // Pass user identity so the neural brain can index memory per-user
+          userId: user.id || user.username || 'anonymous',
+          userName: user.full_name || user.username || 'User'
         })
       });
 
@@ -171,7 +221,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <div style={{
         background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
         padding: '14px 16px', display: 'flex', alignItems: 'center',
-        gap: 10, flexShrink: 0
+        gap: 10, flexShrink: 0, position: 'relative'
       }}>
         <div style={{
           width: 36, height: 36, borderRadius: '50%',
@@ -182,11 +232,40 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <Bot size={18} color="white" />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, color: 'white', fontSize: 14, fontFamily: 'Inter, sans-serif' }}>Aira</div>
+          <div style={{ fontWeight: 800, color: 'white', fontSize: 14, fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: 6 }}>
+            Aira
+            {/* Neural Brain indicator */}
+            <span title="Neural Brain Active" style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              background: 'rgba(255,255,255,0.15)', borderRadius: 10,
+              padding: '1px 7px', fontSize: 10, fontWeight: 700,
+              border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(4px)'
+            }}>
+              <Brain size={9} style={{ flexShrink: 0 }} />
+              Neural Brain
+            </span>
+          </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontFamily: 'Inter, sans-serif' }}>
             {loading ? '✨ Thinking...' : '● Online — Enterprise AI Companion'}
           </div>
         </div>
+
+        {/* Memory Restored badge */}
+        {memoryRestored && (
+          <div style={{
+            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(16,185,129,0.9)', borderRadius: 20,
+            padding: '3px 12px', fontSize: 11, fontWeight: 700,
+            color: 'white', display: 'flex', alignItems: 'center', gap: 5,
+            backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)',
+            animation: 'fadeInDown 0.4s ease',
+            zIndex: 10, whiteSpace: 'nowrap'
+          }}>
+            <Sparkles size={10} />
+            {memoryCount} memories restored
+          </div>
+        )}
+
         <button onClick={clearChat} title="Clear chat" style={{
           background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
           cursor: 'pointer', color: 'rgba(255,255,255,0.85)', padding: '5px 7px',

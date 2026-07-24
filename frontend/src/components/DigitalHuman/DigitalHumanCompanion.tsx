@@ -80,7 +80,7 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
   const [hasGreeted, setHasGreeted] = useState(false);
   
   // Dragging state
-  const [pos, setPos] = useState({ left: typeof window !== 'undefined' ? window.innerWidth - 180 : 1000, bottom: 20 });
+  const [pos, setPos] = useState({ left: typeof window !== 'undefined' ? window.innerWidth - 260 : 1000, bottom: 20 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, startLeft: 0, startBottom: 0 });
 
@@ -244,27 +244,6 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
   // ── Role-based greeting variation ─────────────────────
   const isExecutive = user ? ['Admin', 'Management'].includes(user.role) : false;
 
-  if (minimized) {
-    return (
-      <div className="dh-zone" style={{ bottom: 24, left: 24, width: 'auto' }}>
-        <button
-          className="dh-minimized-btn"
-          onClick={() => setMinimized(false)}
-          style={{
-            width: 52, height: 52, borderRadius: '50%', border: 'none',
-            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-            color: 'white', cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
-          }}
-          title="Open Aira"
-        >
-          <MessageCircle size={22} />
-        </button>
-      </div>
-    );
-  }
-
   return (
     <>
       {/* Chat Panel */}
@@ -283,66 +262,89 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
 
       {/* Digital Human Zone */}
       <div 
-        className={`dh-zone ${isDragging ? 'dh-dragging' : ''}`}
-        style={{ left: pos.left, bottom: pos.bottom }}
+        className={`dh-zone ${isDragging ? 'dh-dragging' : ''} ${minimized ? 'dh-minimized' : ''}`}
+        style={{ left: minimized ? pos.left + 54 : pos.left, bottom: pos.bottom }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {/* Speech Bubble */}
-        {bubble && !chatOpen && (
-          <div className={`dh-bubble ${bubbleExiting ? 'exiting' : ''}`}>
-            <div className="dh-bubble-name">
-              {isExecutive ? '✨ Aira — Executive Mode' : '💼 Aira'}
-            </div>
-            <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>
-              {bubble.text}
-            </div>
-            {bubble.subtext && (
-              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>
-                {bubble.subtext}
-              </div>
-            )}
-            <div className="dh-bubble-dot-tail" />
-          </div>
-        )}
-
-        {/* Avatar */}
-        <AvatarSVG state={state} size={140} onClick={handleClick} />
-
-        {/* Label + minimize */}
-        <div style={{
-          marginTop: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 3
-        }}>
-          <span style={{
-            fontSize: 10, fontWeight: 800, color: '#6366f1',
-            textTransform: 'uppercase', letterSpacing: '0.08em',
-            background: 'rgba(99,102,241,0.08)',
-            padding: '2px 10px', borderRadius: 20,
-            border: '1px solid rgba(99,102,241,0.2)'
-          }}>
-            Aira · AI Companion
-          </span>
+        {minimized ? (
           <button
+            className="dh-minimized-btn"
             onClick={(e) => {
               e.stopPropagation();
-              setMinimized(true);
+              setMinimized(false);
             }}
             onPointerDown={e => e.stopPropagation()}
             style={{
-              fontSize: 10, color: '#94a3b8', background: 'none', border: 'none',
-              cursor: 'pointer', fontWeight: 600, padding: '2px 6px', fontFamily: 'Inter, sans-serif'
+              width: 52, height: 52, borderRadius: '50%', border: 'none',
+              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+              color: 'white', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
             }}
-            title="Minimize"
+            title="Open Aira"
           >
-            Hide
+            <MessageCircle size={22} />
           </button>
-        </div>
+        ) : (
+          <>
+            {/* Speech Bubble */}
+            {bubble && !chatOpen && (
+              <div className={`dh-bubble ${bubbleExiting ? 'exiting' : ''}`}>
+                <div className="dh-bubble-name">
+                  {isExecutive ? '✨ Aira — Executive Mode' : '💼 Aira'}
+                </div>
+                <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>
+                  {bubble.text}
+                </div>
+                {bubble.subtext && (
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>
+                    {bubble.subtext}
+                  </div>
+                )}
+                <div className="dh-bubble-dot-tail" />
+              </div>
+            )}
+
+            {/* Avatar */}
+            <AvatarSVG state={state} size={140} onClick={handleClick} />
+
+            {/* Label + minimize */}
+            <div style={{
+              marginTop: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3
+            }}>
+              <span style={{
+                fontSize: 10, fontWeight: 800, color: '#6366f1',
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+                background: 'rgba(99,102,241,0.08)',
+                padding: '2px 10px', borderRadius: 20,
+                border: '1px solid rgba(99,102,241,0.2)'
+              }}>
+                Aira · AI Companion
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMinimized(true);
+                }}
+                onPointerDown={e => e.stopPropagation()}
+                style={{
+                  fontSize: 10, color: '#94a3b8', background: 'none', border: 'none',
+                  cursor: 'pointer', fontWeight: 600, padding: '2px 6px', fontFamily: 'Inter, sans-serif'
+                }}
+                title="Minimize"
+              >
+                Hide
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   );

@@ -1,0 +1,56 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  role      String   @default("Employee")
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  employee  Employee?
+}
+
+model Employee {
+  id             String   @id @default(uuid())
+  empId          String   @unique
+  fullName       String
+  department     String
+  designation    String
+  emailOfficial  String   @unique
+  joinDate       DateTime
+  status         String   @default("Active")
+  userId         String   @unique
+  
+  user           User     @relation(fields: [userId], references: [id])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model JobRequisition {
+  id          String   @id @default(uuid())
+  title       String
+  department  String
+  status      String   @default("OPEN")
+  requestedBy String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  resource  String
+  details   Json?
+  createdAt DateTime @default(now())
+}

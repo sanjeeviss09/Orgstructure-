@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { fetchRequisitions, createRequisition, updateRequisition, deleteRequisition, JobRequisition } from '../lib/recruitment_api';
 import { fetchEmployees, Employee } from '../lib/api';
 import { Plus, Link as LinkIcon, CheckCircle2, Trash2 } from 'lucide-react';
@@ -9,7 +9,7 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
   const [showModal, setShowModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState('');
   const [jdFile, setJdFile] = useState<File | null>(null);
-  
+  const [posterFile, setPosterFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Partial<JobRequisition>>({
     position_title: '',
     position_code: '',
@@ -29,6 +29,16 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
     expected_joining_date: ''
   });
 
+  const empList = Array.isArray(employees) ? employees : [];
+  const departments = [...new Set(empList.map(e => e.department).filter(Boolean))].sort();
+
+  const reportingMgrs = useMemo(() => {
+    const base = empList.filter(e => (e.role_tier || 5) < 5); // Managers (tier < 5)
+    const sameDept = base.filter(e => formData.department && e.department === formData.department).sort((a, b) => (a.role_tier || 5) - (b.role_tier || 5));
+    const otherDept = base.filter(e => !formData.department || e.department !== formData.department).sort((a, b) => (a.role_tier || 5) - (b.role_tier || 5));
+    return { sameDept, otherDept };
+  }, [empList, formData.department]);
+
   const loadData = () => {
     fetchRequisitions().then(setRequisitions);
     fetchEmployees().then(setEmployees);
@@ -37,16 +47,18 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (jdFile) {
+    if (jdFile || posterFile) {
       const data = new FormData();
       Object.keys(formData).forEach(key => data.append(key, String((formData as any)[key])));
-      data.append('jd_file', jdFile);
+      if (jdFile) data.append('jd_file', jdFile);
+      if (posterFile) data.append('poster_file', posterFile);
       await createRequisition(data);
     } else {
       await createRequisition(formData);
     }
     setShowModal(false);
     setJdFile(null);
+    setPosterFile(null);
     loadData();
   };
 
@@ -179,7 +191,10 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Department</label>
-                  <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
+                  <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
+                    <option value="" disabled>Select Department...</option>
+                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Location</label>
@@ -198,9 +213,20 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Reporting Manager</label>
                     <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.reporting_manager_id || ''} onChange={e => setFormData({...formData, reporting_manager_id: e.target.value})}>
                       <option value="" disabled>Select Manager...</option>
-                      {employees.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
-                      ))}
+                      {reportingMgrs.sameDept.length > 0 && (
+                        <optgroup label={`${formData.department || 'Same'} Department`}>
+                          {reportingMgrs.sameDept.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {reportingMgrs.otherDept.length > 0 && (
+                        <optgroup label="Other Departments">
+                          {reportingMgrs.otherDept.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 )}
@@ -225,9 +251,16 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
                 <div className="col-span-2">
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Job Description</label>
                   <textarea required rows={4} className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.job_description} onChange={e => setFormData({...formData, job_description: e.target.value})} placeholder="Enter job description or upload a JD PDF below..." />
-                  <div className="mt-2">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Upload JD Document (PDF - Optional)</label>
-                    <input type="file" accept=".pdf" className="text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onChange={e => setJdFile(e.target.files?.[0] || null)} />
+                  
+                  <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Upload JD Document (PDF - Optional)</label>
+                      <input type="file" accept=".pdf" className="text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onChange={e => setJdFile(e.target.files?.[0] || null)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Upload Job Poster (Image - Optional)</label>
+                      <input type="file" accept="image/*" className="text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100" onChange={e => setPosterFile(e.target.files?.[0] || null)} />
+                    </div>
                   </div>
                 </div>
               </div>

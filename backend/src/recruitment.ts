@@ -105,18 +105,27 @@ recruitmentRouter.get('/requisitions', (req, res) => {
   res.json(getJobRequisitions());
 });
 
-recruitmentRouter.post('/requisitions', upload.single('jd_file'), async (req, res) => {
+recruitmentRouter.post('/requisitions', upload.fields([{ name: 'jd_file', maxCount: 1 }, { name: 'poster_file', maxCount: 1 }]), async (req, res) => {
   try {
     const reqId = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
     let jd_url = '';
     let extractedJDText = '';
+    let poster_url = '';
 
-    if (req.file) {
-      jd_url = await uploadFileToSupabase(req.file, reqId) || '';
-      if (req.file.mimetype === 'application/pdf') {
-        const pdfData = await pdfParse(req.file.buffer);
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+    if (files && files['jd_file'] && files['jd_file'][0]) {
+      const file = files['jd_file'][0];
+      jd_url = await uploadFileToSupabase(file, reqId) || '';
+      if (file.mimetype === 'application/pdf') {
+        const pdfData = await pdfParse(file.buffer);
         extractedJDText = pdfData.text.trim();
       }
+    }
+
+    if (files && files['poster_file'] && files['poster_file'][0]) {
+      const file = files['poster_file'][0];
+      poster_url = await uploadFileToSupabase(file, reqId) || '';
     }
 
     let reqPositionId = undefined;
@@ -153,6 +162,7 @@ recruitmentRouter.post('/requisitions', upload.single('jd_file'), async (req, re
       ...req.body,
       job_description: extractedJDText ? `${req.body.job_description}\n\n[Parsed from JD Document]:\n${extractedJDText}` : req.body.job_description,
       jd_url,
+      poster_url,
       position_id: reqPositionId,
       replaced_employee_id: req.body.replaced_employee_id,
       status: 'Pending HR',
