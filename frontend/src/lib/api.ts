@@ -282,22 +282,31 @@ export const login = async (usernameInput: string, passwordInput: string): Promi
     if (e.message === 'Invalid credentials') throw e;
   }
 
-  // 3. Fallback for test account keywords (admin, management, hod, manager, employee)
+  // 3. Fallback for test account keywords (admin, management, hod, manager, employee) and custom AXX accounts
   const lower = trimmed.toLowerCase();
-  const testAccounts: Record<string, { role: string; name: string }> = {
+  const testAccounts: Record<string, { role: string; name: string; expectedPass?: string }> = {
     admin: { role: 'Admin', name: 'Admin User' },
     management: { role: 'Management', name: 'Management User' },
     hod: { role: 'HOD', name: 'HOD User' },
     manager: { role: 'Manager', name: 'Manager User' },
-    employee: { role: 'Employee', name: 'Employee User' }
+    employee: { role: 'Employee', name: 'Employee User' },
+    axx09: { role: 'Admin', name: 'Admin User', expectedPass: 'axx09' },
+    axx08: { role: 'Management', name: 'Management User', expectedPass: 'axx08' },
+    axx07: { role: 'HOD', name: 'HOD User', expectedPass: 'axx07' },
+    axx06: { role: 'Manager', name: 'Manager User', expectedPass: 'axx06' },
+    axx05: { role: 'Employee', name: 'Employee User', expectedPass: 'axx05' }
   };
 
   if (testAccounts[lower]) {
+    const acc = testAccounts[lower];
+    if (acc.expectedPass && passwordInput.toLowerCase() !== acc.expectedPass) {
+      throw new Error('Invalid credentials');
+    }
     return {
       id: `TEST_${lower.toUpperCase()}`,
       username: lower,
-      full_name: testAccounts[lower].name,
-      role: testAccounts[lower].role as any,
+      full_name: acc.name,
+      role: acc.role as any,
       employee_id: `EMP_${lower}`
     };
   }

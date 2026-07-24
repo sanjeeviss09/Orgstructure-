@@ -143,6 +143,46 @@
       "role": "Employee",
       "employee_id": "220eb4cb-8765-4f32-9f6a-d22eb237729c",
       "avatar": "https://i.pravatar.cc/150?u=bulk178478982139711"
+    },
+    {
+      "id": "u_axx09",
+      "username": "AXX09",
+      "password": "AXX09",
+      "full_name": "Admin User",
+      "role": "Admin",
+      "employee_id": null
+    },
+    {
+      "id": "u_axx08",
+      "username": "AXX08",
+      "password": "AXX08",
+      "full_name": "Management User",
+      "role": "Management",
+      "employee_id": null
+    },
+    {
+      "id": "u_axx07",
+      "username": "AXX07",
+      "password": "AXX07",
+      "full_name": "HOD User",
+      "role": "HOD",
+      "employee_id": null
+    },
+    {
+      "id": "u_axx06",
+      "username": "AXX06",
+      "password": "AXX06",
+      "full_name": "Manager User",
+      "role": "Manager",
+      "employee_id": null
+    },
+    {
+      "id": "u_axx05",
+      "username": "AXX05",
+      "password": "AXX05",
+      "full_name": "Employee User",
+      "role": "Employee",
+      "employee_id": null
     }
   ],
   "employees": [
