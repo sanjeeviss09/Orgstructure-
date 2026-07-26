@@ -79,10 +79,10 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
   const [minimized, setMinimized] = useState(false);
   const [hasGreeted, setHasGreeted] = useState(false);
   
-  // Dragging state
-  const [pos, setPos] = useState({ left: typeof window !== 'undefined' ? window.innerWidth - 260 : 1000, bottom: 20 });
+  // Dragging state using translate transform instead of left/bottom to fix SSR and resize issues
+  const [pos, setPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, startLeft: 0, startBottom: 0 });
+  const dragRef = useRef({ startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
 
   const stateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -197,8 +197,8 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      startLeft: pos.left,
-      startBottom: pos.bottom
+      startPosX: pos.x,
+      startPosY: pos.y
     };
   };
 
@@ -216,15 +216,16 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
 
     if (isDragging) {
       setPos({
-        left: Math.max(0, Math.min(window.innerWidth - 160, dragRef.current.startLeft + dx)),
-        // Note: dy is positive down, but bottom is positive up, so we subtract dy
-        bottom: Math.max(0, Math.min(window.innerHeight - 300, dragRef.current.startBottom - dy))
+        x: dragRef.current.startPosX + dx,
+        y: dragRef.current.startPosY + dy
       });
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (err) {}
     
     // If we didn't drag, treat it as a click (only if it wasn't on a button)
     if (!isDragging && (e.target as HTMLElement).tagName !== 'BUTTON') {
@@ -263,7 +264,7 @@ export const DigitalHumanCompanion: React.FC<DigitalHumanCompanionProps> = ({ us
       {/* Digital Human Zone */}
       <div 
         className={`dh-zone ${isDragging ? 'dh-dragging' : ''} ${minimized ? 'dh-minimized' : ''}`}
-        style={{ left: minimized ? pos.left + 54 : pos.left, bottom: pos.bottom }}
+        style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

@@ -180,6 +180,7 @@ export interface JobRequisition {
   position_title: string;
   position_code: string;
   department: string;
+  sub_function?: string;
   business_unit: string;
   location: string;
   reporting_manager_id: string | null;

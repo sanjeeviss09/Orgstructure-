@@ -14,6 +14,7 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
     position_title: '',
     position_code: '',
     department: '',
+    sub_function: '',
     business_unit: '',
     location: '',
     position_type: 'New Position',
@@ -31,6 +32,22 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
 
   const empList = Array.isArray(employees) ? employees : [];
   const departments = [...new Set(empList.map(e => e.department).filter(Boolean))].sort();
+
+  const subFunctions = useMemo(() => {
+    if (!formData.department) return [];
+    const sf = empList
+      .filter(e => e.department === formData.department && e.sub_function)
+      .map(e => e.sub_function as string);
+    return [...new Set(sf)].sort();
+  }, [empList, formData.department]);
+
+  const designations = useMemo(() => {
+    if (!formData.department) return [];
+    const ds = empList
+      .filter(e => e.department === formData.department && e.designation)
+      .map(e => e.designation);
+    return [...new Set(ds)].sort();
+  }, [empList, formData.department]);
 
   const reportingMgrs = useMemo(() => {
     const base = empList.filter(e => (e.role_tier || 5) < 5); // Managers (tier < 5)
@@ -187,18 +204,32 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Position Title</label>
-                  <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.position_title} onChange={e => setFormData({...formData, position_title: e.target.value})} />
+                  <input required list="designation-list" type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.position_title} onChange={e => setFormData({...formData, position_title: e.target.value})} placeholder="Select or type..." />
+                  <datalist id="designation-list">
+                    {designations.map(d => <option key={d} value={d} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Department</label>
-                  <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
+                  <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value, sub_function: ''})}>
                     <option value="" disabled>Select Department...</option>
                     {departments.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sub Function</label>
+                  <select className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.sub_function || ''} onChange={e => setFormData({...formData, sub_function: e.target.value})}>
+                    <option value="">Select Sub Function...</option>
+                    {subFunctions.map(sf => <option key={sf} value={sf}>{sf}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Location</label>
                   <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of Openings</label>
+                  <input required type="number" min="1" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.number_of_openings} onChange={e => setFormData({...formData, number_of_openings: parseInt(e.target.value) || 1})} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Type</label>
