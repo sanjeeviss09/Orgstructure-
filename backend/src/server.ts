@@ -7,10 +7,14 @@ import rateLimit from 'express-rate-limit';
 import {
   getEmployees, getEmployeeById, addEmployee, updateEmployee,
   deleteEmployee, bulkDeleteEmployees, bulkAddEmployees, getUserByUsername, Employee,
-  resetDatabaseData, getPositions, savePositions, addPosition, updatePosition, Position, getOffers
+  resetDatabaseData, getPositions, savePositions, addPosition, updatePosition, deletePosition, Position, getOffers, createUser, updateUserRole, getUsers
 } from './data/database';
 import { internsRouter } from './interns';
 import { recruitmentRouter } from './recruitment';
+import { templatesRouter } from './templates';
+import { opbieRouter } from './opbie';
+import { knowledgeRouter, getActiveKnowledgeContext } from './knowledge';
+import { getOpbieKnowledge } from './data/database';
 
 dotenv.config();
 
@@ -36,6 +40,15 @@ app.use('/api/interns', internsRouter);
 
 // Mount recruitment router
 app.use('/api/recruitment', recruitmentRouter);
+
+// Mount templates router
+app.use('/api/templates', templatesRouter);
+
+// Mount OPBIE router
+app.use('/api/opbie', opbieRouter);
+
+// Mount Knowledge router
+app.use('/api/knowledge', knowledgeRouter);
 
 // Serve candidate uploads statically
 import fs from 'fs';
@@ -64,6 +77,65 @@ app.post('/api/auth/login', (req, res) => {
   return res.status(401).json({ error: 'Invalid credentials. Please check your username and password.' });
 });
 
+app.get('/api/auth/users', (req, res) => {
+  const users = getUsers().map(u => {
+    const { password, ...safeUser } = u;
+    return safeUser;
+  });
+  return res.json(users);
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, employee_number } = req.body;
+  if (!username || !password || !employee_number) {
+    return res.status(400).json({ error: 'Username, password, and employee number are required' });
+  }
+  try {
+    const allEmployees = getEmployees();
+    const existingEmp = allEmployees.find(e => e.emp_id === employee_number);
+    if (!existingEmp) {
+      return res.status(404).json({ error: 'Employee number not found in system. Please contact HR.' });
+    }
+    
+    // Check if user already exists for this employee
+    const allUsers = getUsers();
+    if (allUsers.find(u => u.employee_id === existingEmp.id)) {
+      return res.status(400).json({ error: 'An account is already registered for this employee number.' });
+    }
+    
+    // Also check if username is taken
+    if (allUsers.find(u => u.username === username.trim())) {
+      return res.status(400).json({ error: 'Username is already taken.' });
+    }
+
+    const newUser = createUser({
+      id: `U_${crypto.randomUUID().substring(0, 8)}`,
+      username: username.trim(),
+      password,
+      full_name: existingEmp.full_name,
+      role: 'Employee',
+      employee_id: existingEmp.id
+    });
+    const { password: _pw, ...safeUser } = newUser;
+    return res.json({ success: true, user: safeUser });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.put('/api/auth/users/:id/role', (req, res) => {
+  const { role } = req.body;
+  if (!role) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
+  const updatedUser = updateUserRole(req.params.id, role);
+  if (!updatedUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const { password: _pw, ...safeUser } = updatedUser;
+  return res.json({ success: true, user: safeUser });
+});
+
 // ─── SYSTEM MAINTENANCE ────────────────────────────────────────────────────────
 app.post('/api/reset', (req, res) => {
   try {
@@ -71,6 +143,143 @@ app.post('/api/reset', (req, res) => {
     res.json({ success: true, message: 'Database reset to mock state' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
+// ─── AI COMPANION HISTORY RESTORE ───────────────────────────────────────────────
+// Called by ChatPanel on mount to restore last 10 messages from the neural brain DB
+app.get('/api/ai-companion/history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const limit = parseInt(req.query.limit as string || '10', 10);
+    const brainRes = await fetch(`http://localhost:8000/api/brain/memory/${encodeURIComponent(userId)}?limit=${limit}`);
+    if (!brainRes.ok) {
+      console.warn('[History] Brain memory unavailable, returning empty history');
+      return res.json({ history: [] });
+    }
+    const data = await brainRes.json();
+    return res.json(data);
+  } catch (err) {
+    console.warn('[History] Could not reach Python brain:', err);
+    return res.json({ history: [] }); // Graceful degradation
+  }
+});
+
+// ─── AI COMPANION BRAIN HEALTH ───────────────────────────────────────────────
+// Proxies /api/brain/health from Python backend
+app.get('/api/ai-companion/brain-health', async (req, res) => {
+  try {
+    const brainRes = await fetch('http://localhost:8000/api/brain/health');
+    if (!brainRes.ok) return res.json({ status: 'offline' });
+    const data = await brainRes.json();
+    return res.json(data);
+  } catch {
+    return res.json({ status: 'offline', total_conversations: 0, unique_users: 0, learning_entries: 0 });
+  }
+});
+
+// ─── AI COMPANION CHAT ─────────────────────────────────────────────────────────
+app.post('/api/ai-companion/chat', async (req, res) => {
+  try {
+    const { message, role, activeTab, context, history = [], userId, userName } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message required' });
+
+    // Role personality prefix
+    const rolePersonality: Record<string, string> = {
+      Admin:      'You are assisting an Admin who has full platform access.',
+      Management: 'You are assisting a Senior Executive/Management user focused on strategic workforce insights.',
+      HOD:        'You are assisting a Head of Department focused on their team and department metrics.',
+      Manager:    'You are assisting a Team Manager focused on their direct team.',
+      Employee:   'You are assisting an Employee with their personal HR queries.',
+      Intern:     'You are assisting an Intern with their internship queries.'
+    };
+
+    const fullSystemPrompt = `You are Aira, the Enterprise AI Companion built into the ORG Enterprise Intelligence Platform. Note: ORG is a leading Pharmaceutical Science and Research Company. All your examples, generated roles, departments, and responses must strictly reflect the pharma and life sciences industry (e.g., Clinical Research, R&D, Pharmacovigilance, Lab Scientists, etc.). Never use IT or Software Engineering roles as defaults.
+${rolePersonality[role] || rolePersonality['Employee']}
+
+Platform Context: Will be provided in a separate system message.
+Active Company Knowledge Documents: ${getActiveKnowledgeContext()}
+
+Currency: Always use ₹ (Indian Rupee / INR). Never use $ or USD.
+
+## YOUR PERSONA & MISSION:
+- You have full platform access and deep intelligence across all modules.
+- You are highly proactive: whenever possible, offer your own intelligent suggestions, strategic insights, and future planning advice tailored to the user's role.
+- You exist in real-time, working alongside the user as a living digital employee, not just a static bot.
+- You must interact deeply with Managers, HODs, and Employees, motivating them, celebrating their successes, and providing a highly friendly, warm, and engaging feel.
+Currency: Always use ₹ (Indian Rupee / INR). Never use $ or USD.
+
+## CRITICAL RESPONSE RULES — YOU MUST FOLLOW THESE:
+
+1. **NEVER tell the user to navigate, click tabs, or go to a page.** Never say things like "Go to the Reports tab", "Click on Recruitment", "Navigate to the Dashboard". This is FORBIDDEN.
+
+2. **ALWAYS answer the question directly here**, inline in this chat panel. If you have data (employee counts, vacancy numbers, budget figures, candidate counts, etc.) from the Platform Context, use it to answer immediately.
+
+3. **Use markdown formatting for clean presentation:**
+   - Use **bold** for labels and key numbers
+   - Use bullet lists (- item) for lists of items
+   - Use markdown tables (| Col | Col |) for comparative or multi-column data
+   - Use clear paragraph breaks
+
+4. **If seeing the full page/report would give extra value**, add ONE navigation token at the very END of your reply in this exact format:
+   [NAVIGATE:tabname:Button Label]
+   Valid tab names ONLY: dashboard, orgchart, directory, recruitment, wellness, reports, templates, targets, manage_interns, user_analytics
+   Example: [NAVIGATE:reports:View Full Reports]
+   Only include ONE navigate token maximum. Do NOT invent new tab names (e.g., do not use accept_offer).
+
+5. **Role-Based Action Boundaries**: 
+   - Understand WHO you are talking to based on their role. 
+   - Admins, Managers, HR, and Employees DO NOT accept job offers. They create or review them. NEVER generate instructions or buttons like "Accept Offer" for these users.
+   - Tailor your suggested actions strictly to the user's role (e.g., Admins "Approve" or "Send" offers).
+
+6. **Use the context data to give real answers.** If asked about employees, use the active employee count. If asked about vacancies, use the vacant positions number. Extrapolate sensibly.
+
+7. **Budget/CTC**: Always format numbers in Indian format (₹ X,XX,XXX or ₹ X Lakh).
+
+8. **Be concise but complete.** 3-8 lines is ideal. Use tables when comparing 2+ categories.
+
+9. **Tone**: Warm, professional, confident. You are an expert HR partner.
+
+## OPBIE Enterprise Psychology Knowledge Base:
+You have access to the following organizational behavioral insights and policies. Use these to guide your answers on culture, engagement, leadership, and policies. Do not attempt to guess individual employee truths, instead rely on these organizational trends and guidelines:
+
+${getOpbieKnowledge().map(k => `### ${k.title} (${k.category})\n${k.content}`).join('\n\n')}`;
+
+    // Inject dynamic calculated Attrition Rate
+    const emps = getEmployees();
+    const totalEmps = emps.length;
+    const resignedEmps = emps.filter(e => e.employment_status === 'Resigned on Roll' || e.employment_status === 'Inactive').length;
+    const attritionRate = totalEmps > 0 ? ((resignedEmps / totalEmps) * 100).toFixed(1) + '%' : '0%';
+    const enrichedContext = `${context || 'No context provided.'}\nReal-time Attrition Rate: ${attritionRate} (Total: ${totalEmps}, Left: ${resignedEmps})`;
+
+    const aiRes = await fetch('http://localhost:8000/api/orchestrate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        role,
+        activeTab,
+        context: enrichedContext,
+        history,
+        // Forward user identity to neural brain for per-user memory
+        userId: userId || 'anonymous',
+        userName: userName || 'User'
+      })
+    });
+
+    if (!aiRes.ok) {
+      const err = await aiRes.text();
+      console.error('Python Orchestrator error:', err);
+      return res.status(500).json({ error: 'AI service unavailable' });
+    }
+
+    const aiData = await aiRes.json();
+    return res.json({ reply: aiData.reply || "I'm not sure how to answer that. Could you rephrase?" });
+  } catch (err) {
+    console.error('AI Companion chat error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -121,6 +330,19 @@ app.put('/api/positions/:id', (req, res) => {
   const updated = updatePosition(req.params.id, req.body);
   if (updated) res.json(updated);
   else res.status(404).json({ error: 'Position not found' });
+});
+
+app.delete('/api/positions/:id/cleanup', (req, res) => {
+  const employees = getEmployees();
+  const occupants = employees.filter(e => e.position_id === req.params.id);
+  const positions = getPositions();
+  const subordinates = positions.filter(p => p.reporting_to_position_id === req.params.id);
+  
+  if (occupants.length === 0 && subordinates.length === 0) {
+    deletePosition(req.params.id);
+    return res.json({ success: true, message: 'Vacant position cleaned up' });
+  }
+  return res.json({ success: false, message: 'Position not empty' });
 });
 
 // ─── BULK IMPORT ──────────────────────────────────────────────────────
@@ -787,6 +1009,18 @@ app.get('/api/analytics/forecasting', (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`\n✅ Antigravity Backend running on http://localhost:${port}`);
+import { createEnterpriseServer } from './api/server';
+
+createEnterpriseServer().then(enterpriseApp => {
+  app.use('/enterprise', enterpriseApp);
+  app.listen(port, () => {
+    console.log(`\n✅ Antigravity Backend running on http://localhost:${port}`);
+    console.log(`✅ Enterprise API mounted on http://localhost:${port}/enterprise`);
+  });
+}).catch(err => {
+  console.error("Failed to start enterprise server", err);
+  // Fallback to legacy
+  app.listen(port, () => {
+    console.log(`\n✅ Antigravity Backend running on http://localhost:${port} (Legacy Mode)`);
+  });
 });

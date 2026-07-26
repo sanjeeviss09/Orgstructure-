@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, Briefcase, Mail, Building2, TrendingUp, Phone } from 'lucide-react';
 import { fetchEmployees, Employee } from '../lib/api';
 import { fetchCandidates, fetchRequisitions, Candidate } from '../lib/recruitment_api';
@@ -55,8 +56,8 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({ rowData, onClose
     loadData();
   }, [rowData]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up ring-1 ring-slate-200">
         
         {/* Header */}
@@ -165,7 +166,7 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({ rowData, onClose
                       </div>
                       <div className="flex items-center justify-between text-slate-600">
                         <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Exp. CTC</span>
-                        <span className="font-medium">₹{(cand.expected_ctc || 0).toLocaleString()}</span>
+                        <span className="font-medium">₹{(cand.expected_ctc || 0).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
                   </div>
@@ -175,6 +176,7 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({ rowData, onClose
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

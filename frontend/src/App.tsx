@@ -15,23 +15,68 @@ import { UserAnalytics } from './components/UserAnalytics';
 import ReportsCenter from './components/ReportsCenter';
 import { RecruitmentModule } from './components/RecruitmentModule';
 import { fetchEmployees, fetchPositions, Employee, Position, AuthUser, DEFAULT_AVATAR } from './lib/api';
+import { supabase } from './lib/supabase';
 import { Layers, LayoutDashboard, Network, Users, LogOut, ChevronRight, Star, FileText, UserPlus, Sparkles, MessageSquare, GraduationCap, ClipboardList, BarChart2, MessageCircle, PieChart } from 'lucide-react';
+import { JobApplicationPortal } from './components/JobApplicationPortal';
+import { CandidateHomePage } from './components/CandidateHomePage';
+import { CareersPortal } from './components/CareersPortal';
+import { CandidateOfferPortal } from './components/CandidateOfferPortal';
+import { DocumentTemplateManager } from './components/TemplateManager/DocumentTemplateManager';
+import { DigitalHumanCompanion } from './components/DigitalHuman/DigitalHumanCompanion';
+import { AiraKnowledgeBase } from './components/AiraKnowledgeBase';
+import { BrainCircuit } from 'lucide-react';
 
-export type Role = 'Admin' | 'Management' | 'HOD' | 'Manager' | 'Employee' | 'Intern';
-type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns' | 'user_analytics' | 'reports';
+export type Role = 'Admin' | 'Management' | 'HOD' | 'Manager' | 'Employee' | 'Intern' | 'Candidate';
+type Tab = 'dashboard' | 'orgchart' | 'directory' | 'details' | 'deptAnalytics' | 'wellness' | 'appraisals' | 'templates' | 'recruitment' | 'targets' | 'detailed_analytics' | 'intern_dashboard' | 'manage_interns' | 'user_analytics' | 'reports' | 'opbie' | 'aira_knowledge';
 
 const ROLE_ACCESS: Record<Role, Tab[]> = {
-  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'user_analytics', 'appraisals', 'templates', 'recruitment', 'reports'],
-  Management: ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports'],
-  HOD:        ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports'],
+  Admin:      ['dashboard', 'orgchart', 'directory', 'wellness', 'manage_interns', 'user_analytics', 'appraisals', 'templates', 'recruitment', 'reports', 'opbie', 'aira_knowledge'],
+  Management: ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports', 'opbie', 'aira_knowledge'],
+  HOD:        ['dashboard', 'orgchart', 'directory', 'wellness', 'appraisals', 'reports', 'opbie'],
   Manager:    ['dashboard', 'orgchart', 'wellness'],
   Employee:   ['dashboard', 'orgchart', 'wellness'],
-  Intern:     ['intern_dashboard', 'orgchart']
+  Intern:     ['intern_dashboard', 'orgchart'],
+  Candidate:  []
 };
 
 function App() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const jobId = urlParams.get('job');
+  const applyGeneral = urlParams.get('apply');
+
+  if (jobId) {
+    return <JobApplicationPortal requisitionId={jobId} />;
+  }
+
+  if (applyGeneral === 'general') {
+    return <JobApplicationPortal requisitionId="GENERAL" />;
+  }
+
+  if (applyGeneral === 'smart') {
+    return <JobApplicationPortal requisitionId="SMART_APPLY" />;
+  }
+
+  const portalType = urlParams.get('portal');
+  if (portalType === 'careers') {
+    return <CareersPortal />;
+  }
+  if (portalType === 'candidate' || portalType === 'offered') {
+    return <CandidateHomePage onEnterPortal={(type) => {
+      if (type === 'candidate') {
+        window.location.href = '?portal=careers';
+      } else if (type === 'offered') {
+        // Quick login for offered testing
+        const dummyOffered = { id: 'OFR-991', username: 'OFR-991', full_name: 'Alex Offered (Test)', role: 'Intern', employee_id: null };
+        localStorage.setItem('ag_user', JSON.stringify(dummyOffered));
+        window.location.href = '/'; // Reload to root which will read ag_user and show dashboard
+      } else {
+        window.location.href = window.location.pathname; // Clear query params to go to login
+      }
+    }} />;
+  }
+
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem('ag_user');
+    const saved = localStorage.getItem('auth_user');
     return saved ? JSON.parse(saved) : null;
   });
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -99,10 +144,27 @@ function App() {
 
   useEffect(() => { if (user) loadData(); }, [user]);
 
-  // Set up Supabase Realtime subscription (Disabled since using local backend)
   useEffect(() => {
     if (!user) return;
-    // Local updates refresh data directly, so realtime websocket to remote Supabase is not needed.
+    
+    const empSub = supabase
+      .channel('employees_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
+        loadData();
+      })
+      .subscribe();
+      
+    const posSub = supabase
+      .channel('positions_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'positions' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(empSub);
+      supabase.removeChannel(posSub);
+    };
   }, [user]);
 
 
@@ -130,6 +192,10 @@ function App() {
 
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
+  if (user.id.startsWith('OFR-') || user.role === 'Candidate') {
+    return <CandidateOfferPortal onLogout={handleLogout} />;
+  }
+
   const NAV_TABS = [
     { id: 'dashboard' as Tab, label: 'My Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'orgchart'  as Tab, label: 'Org Structure', icon: <Network className="w-5 h-5" /> },
@@ -142,6 +208,7 @@ function App() {
     { id: 'appraisals' as Tab, label: 'Appraisals',   icon: <Star className="w-5 h-5" /> },
     { id: 'templates' as Tab, label: 'Templates',     icon: <FileText className="w-5 h-5" /> },
     { id: 'recruitment' as Tab, label: 'Recruitment', icon: <UserPlus className="w-5 h-5" /> },
+    { id: 'aira_knowledge' as Tab, label: 'Aira Knowledge Base', icon: <BrainCircuit className="w-5 h-5" /> },
   ].filter(t => allowedTabs.includes(t.id));
 
   return (
@@ -173,7 +240,7 @@ function App() {
           </div>
 
           {/* Nav tabs — left-aligned "side option" */}
-          <nav className="flex items-center gap-3 overflow-x-auto no-scrollbar ml-4">
+          <nav className="flex items-center gap-3 overflow-x-auto no-scrollbar mx-4 flex-1 min-w-0">
             {NAV_TABS.map(tab => (
               <button
                 key={tab.id}
@@ -183,9 +250,9 @@ function App() {
                   setActiveTab(tab.id);
                   setNavHistory([{ tab: tab.id }]);
                 }}
-                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ease-out hover:-translate-y-1 active:scale-90 shrink-0 shadow-sm ${
+                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ease-out hover:scale-105 active:scale-95 shrink-0 shadow-sm ${
                   activeTab === tab.id
-                    ? 'bg-indigo-600 text-white shadow-indigo-300/50 shadow-lg'
+                    ? 'bg-indigo-600 text-white shadow-indigo-300/50 shadow-lg border border-indigo-600'
                     : 'bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md'
                 }`}
               >
@@ -193,6 +260,8 @@ function App() {
                 {cloneElement(tab.icon as any, { className: 'w-6 h-6' })}
               </button>
             ))}
+            {/* Spacer to prevent scroll clipping of the last icon and keep a gap before the profile */}
+            <div className="w-4 shrink-0" />
           </nav>
 
           {/* Right: User */}
@@ -364,7 +433,15 @@ function App() {
             <ReportsCenter />
           )}
 
-          {['appraisals', 'templates'].includes(activeTab) && (
+          {activeTab === 'templates' && (
+            <DocumentTemplateManager />
+          )}
+
+          {activeTab === 'aira_knowledge' && (
+            <AiraKnowledgeBase />
+          )}
+
+          {['appraisals'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border border-slate-200/80 shadow-sm min-h-[50vh]">
               <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mb-6">
                 <Sparkles className="w-8 h-8" />
@@ -398,6 +475,21 @@ function App() {
           <MessageCircle className="w-6 h-6" />
         </button>
       )}
+
+      {/* Aira Digital Human Companion */}
+      <div className="fixed bottom-4 right-[90px] z-50">
+        <DigitalHumanCompanion
+          user={user}
+          activeTab={activeTab}
+          employees={employees}
+          positions={positions}
+          onNavigate={(tab) => {
+            setActiveTab(tab as Tab);
+            setNavHistory([{ tab: tab as Tab }]);
+          }}
+          context="dashboard"
+        />
+      </div>
     </div>
   );
 }

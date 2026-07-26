@@ -5,3 +5,7 @@ dist
 build
 .cache
 coverage
+venv/
+*.venv
+__pycache__/
+*.log

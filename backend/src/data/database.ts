@@ -139,6 +139,17 @@ export interface DailyFeedback {
   suggestions: string;
 }
 
+// ─── OPBIE (Organizational Psychology & Behavioral Intelligence Engine) ───
+
+export interface OPBIEKnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  category: 'Organizational Psychology' | 'Leadership' | 'Employee Engagement' | 'Behavioral Economics' | 'Change Management' | 'General';
+  created_at: string;
+  created_by: string;
+}
+
 export interface DesignationTarget {
   designation: string;
   budgeted_hc: number;
@@ -169,10 +180,13 @@ export interface JobRequisition {
   position_title: string;
   position_code: string;
   department: string;
+  sub_function?: string;
   business_unit: string;
   location: string;
   reporting_manager_id: string | null;
   position_type: 'New Position' | 'Replacement Position';
+  position_id?: string;
+  replaced_employee_id?: string;
   budgeted_ctc: number;
   grade: string;
   employment_type: string;
@@ -183,6 +197,8 @@ export interface JobRequisition {
   job_description: string;
   hiring_justification: string;
   expected_joining_date: string;
+  jd_url?: string;
+  poster_url?: string;
   status: 'Pending HR' | 'Pending Finance' | 'Pending Final' | 'Approved' | 'Rejected';
   created_at: string;
   is_active_link: boolean;
@@ -207,6 +223,7 @@ export interface Candidate {
   relevant_experience: string;
   current_ctc: number;
   expected_ctc: number;
+  highest_qualification?: string;
   notice_period: string;
   reason_for_change?: string;
   
@@ -268,6 +285,46 @@ export interface Offer {
   created_at: string;
 }
 
+
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  type: 'Offer Letter' | 'Appointment Letter' | 'Confirmation Letter' | 'Salary Revision Letter' | 'Promotion Letter' | 'Transfer Letter' | 'Relieving Letter' | 'Experience Certificate' | 'Warning Letter' | 'Custom';
+  file_type: 'DOCX' | 'PDF' | 'HTML' | 'XLSX';
+  file_url: string;
+  parsed_html?: string;
+  editable_fields: string[]; // List of fields like 'employee_name', 'ctc'
+  field_mappings?: Record<string, string>; // Maps editable field name to an employee property or 'manual'
+  version: number;
+  active: boolean;
+  applicable_departments?: string[];
+  applicable_grades?: string[];
+  created_at: string;
+  created_by: string;
+}
+
+export interface GeneratedDocument {
+  id: string;
+  employee_id: string;
+  template_id: string;
+  document_name: string;
+  version: number;
+  generated_at: string;
+  generated_by: string;
+  status: 'Draft' | 'Final';
+  html_content: string;
+  field_values: Record<string, any>;
+}
+
+export interface FormulaComponent {
+  id: string;
+  template_id: string;
+  component_name: string; // e.g. "Basic Salary"
+  cell_ref?: string;      // e.g. "C8" for excel
+  expression: string;     // e.g. "monthly_ctc * 0.45"
+  dependencies: string[]; // e.g. ["monthly_ctc"]
+}
+
 export interface BudgetException {
   id: string;
   offer_id: string;
@@ -277,6 +334,7 @@ export interface BudgetException {
   budgeted_ctc: number;
   offered_ctc: number;
   variance_amount: number;
+  jd_url?: string;
   status: 'Pending Dept Head' | 'Pending HR Head' | 'Pending Management' | 'Approved' | 'Rejected';
   created_at: string;
 }
@@ -291,6 +349,9 @@ interface DB {
   job_requisitions: JobRequisition[];
   interviews: Interview[];
   offers: Offer[];
+  document_templates: DocumentTemplate[];
+  formula_components: FormulaComponent[];
+  generated_documents: GeneratedDocument[];
   budget_exceptions: BudgetException[];
   questionnaires: Questionnaire[];
   assignments: Assignment[];
@@ -298,10 +359,16 @@ interface DB {
   counselling_sessions: CounsellingSession[];
   daily_feedbacks: DailyFeedback[];
   hr_targets: HRTargets;
+  opbie_knowledge: OPBIEKnowledgeItem[];
 }
 
 const syncUsersWithEmployees = (db: DB): DB => {
   const newUsers: User[] = [];
+  const existingUsernames = new Set<string>();
+  
+  // Preserve non-employee users
+  const nonEmployeeUsers = (db.users || []).filter(u => !u.employee_id);
+  nonEmployeeUsers.forEach(u => existingUsernames.add(u.username));
   
   db.employees.forEach(emp => {
     let username = 'user';
@@ -314,10 +381,11 @@ const syncUsersWithEmployees = (db: DB): DB => {
 
     let uniqueUsername = username;
     let counter = 1;
-    while (newUsers.some(u => u.username === uniqueUsername)) {
+    while (existingUsernames.has(uniqueUsername)) {
       uniqueUsername = `${username}${counter}`;
       counter++;
     }
+    existingUsernames.add(uniqueUsername);
 
     newUsers.push({
       id: `u_${emp.id}`,
@@ -330,8 +398,6 @@ const syncUsersWithEmployees = (db: DB): DB => {
     });
   });
 
-  // Preserve non-employee users
-  const nonEmployeeUsers = (db.users || []).filter(u => !u.employee_id);
   db.users = [...nonEmployeeUsers, ...newUsers];
   return db;
 };
@@ -339,6 +405,8 @@ const syncUsersWithEmployees = (db: DB): DB => {
 const syncPositionsWithEmployees = (db: DB): DB => {
   if (!db.positions) db.positions = [];
   const existingPosIds = new Set(db.positions.map(p => p.id));
+  const posMap = new Map(db.positions.map(p => [p.id, p]));
+  const empIdToEmployee = new Map(db.employees.map(e => [e.id, e]));
   
   db.employees.forEach(emp => {
     let posStatus: PositionStatus = 'A';
@@ -353,7 +421,7 @@ const syncPositionsWithEmployees = (db: DB): DB => {
       
       let reporting_to_position_id: string | null = null;
       if (emp.reporting_to_id) {
-        const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+        const mgr = empIdToEmployee.get(emp.reporting_to_id);
         if (mgr) {
           if (!mgr.position_id) {
             mgr.position_id = `P_${crypto.randomUUID().substring(0, 8)}`;
@@ -362,7 +430,7 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         }
       }
       
-      db.positions.push({
+      const newPos: Position = {
         id: posId,
         title: emp.designation || 'Unknown Role',
         department: emp.department || '',
@@ -371,10 +439,12 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         reporting_to_position_id,
         status: posStatus,
         budgeted_ctc: 0
-      });
+      };
+      db.positions.push(newPos);
+      posMap.set(posId, newPos);
       existingPosIds.add(posId);
     } else {
-      const pos = db.positions.find(p => p.id === emp.position_id);
+      const pos = posMap.get(emp.position_id);
       if (pos) {
         pos.status = posStatus;
         pos.title = emp.designation || pos.title;
@@ -383,12 +453,10 @@ const syncPositionsWithEmployees = (db: DB): DB => {
         pos.sub_function = emp.sub_function || pos.sub_function;
         
         if (emp.reporting_to_id) {
-          const mgr = db.employees.find(e => e.id === emp.reporting_to_id);
+          const mgr = empIdToEmployee.get(emp.reporting_to_id);
           if (mgr && mgr.position_id) {
             pos.reporting_to_position_id = mgr.position_id;
           }
-        } else {
-          pos.reporting_to_position_id = null;
         }
       }
     }
@@ -417,6 +485,10 @@ const readDb = (): DB => {
         job_requisitions: [],
         interviews: [],
         offers: [],
+        document_templates: [],
+        formula_components: [],
+        generated_documents: [],
+        opbie_knowledge: [],
         budget_exceptions: [],
         questionnaires: [],
         assignments: [],
@@ -441,6 +513,9 @@ const readDb = (): DB => {
   if (!parsed.positions) parsed.positions = [];
   if (!parsed.appraisals) parsed.appraisals = [];
   if (!parsed.templates) parsed.templates = [];
+  if (!parsed.document_templates) parsed.document_templates = [];
+  if (!parsed.formula_components) parsed.formula_components = [];
+  if (!parsed.generated_documents) parsed.generated_documents = [];
   if (!parsed.candidates) parsed.candidates = [];
   if (!parsed.job_requisitions) parsed.job_requisitions = [];
   if (!parsed.interviews) parsed.interviews = [];
@@ -473,17 +548,49 @@ const readDb = (): DB => {
   return db;
 };
 
-const writeDb = (db: DB): void => {
-  let syncedDb = syncPositionsWithEmployees(db);
-  syncedDb = syncUsersWithEmployees(syncedDb);
+let writeTimeout: NodeJS.Timeout | null = null;
+
+const writeDb = (db: DB, skipSync = false): void => {
+  let syncedDb = db;
+  if (!skipSync) {
+    syncedDb = syncPositionsWithEmployees(db);
+    syncedDb = syncUsersWithEmployees(syncedDb);
+  }
   cachedDb = syncedDb;
-  fs.writeFileSync(DB_PATH, JSON.stringify(syncedDb, null, 2), 'utf-8');
+  
+  if (writeTimeout) clearTimeout(writeTimeout);
+  writeTimeout = setTimeout(() => {
+    fs.writeFile(DB_PATH, JSON.stringify(syncedDb, null, 2), 'utf-8', (err) => {
+      if (err) console.error('Failed to write db.json asynchronously:', err);
+    });
+  }, 50);
 };
 
 // User operations
 export const getUsers = (): User[] => readDb().users;
 export const getUserByUsername = (username: string): User | undefined =>
   readDb().users.find(u => u.username.toLowerCase() === username.toLowerCase());
+
+export const createUser = (user: User): User => {
+  const db = readDb();
+  if (db.users.find(u => u.username.toLowerCase() === user.username.toLowerCase())) {
+    throw new Error('Username already exists');
+  }
+  db.users.push(user);
+  writeDb(db);
+  return user;
+};
+
+export const updateUserRole = (id: string, role: User['role']): User | undefined => {
+  const db = readDb();
+  const user = db.users.find(u => u.id === id);
+  if (user) {
+    user.role = role;
+    writeDb(db);
+    return user;
+  }
+  return undefined;
+};
 
 // Employee operations
 export const getEmployees = (): Employee[] => {
@@ -668,12 +775,14 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
     if (data.employment_status === 'Resigned on Roll' && !data.notice_start_date && !existing.notice_start_date) {
       data.notice_start_date = new Date().toISOString();
     }
+  }
 
-    // Update the position's status as well
-    if (existing.position_id) {
-      if (!db.positions) db.positions = [];
-      const posIdx = db.positions.findIndex(p => p.id === existing.position_id);
-      if (posIdx !== -1) {
+  // Sync Position status and other attributes
+  if (existing.position_id) {
+    if (!db.positions) db.positions = [];
+    const posIdx = db.positions.findIndex(p => p.id === existing.position_id);
+    if (posIdx !== -1) {
+      if (data.employment_status !== undefined) {
         let posStatus: import('./database').PositionStatus = 'A';
         if (data.employment_status === 'Resigned on Roll') posStatus = 'RoR';
         else if (data.employment_status === 'Replacement Joined') posStatus = 'RP';
@@ -682,6 +791,19 @@ export const updateEmployee = (id: string, data: Partial<Employee>): Employee | 
         else if (data.employment_status === 'Under Notice Period') posStatus = 'RoR';
         else if (data.employment_status === 'Active') posStatus = 'A';
         db.positions[posIdx].status = posStatus;
+      }
+      
+      if (data.department !== undefined) db.positions[posIdx].department = data.department;
+      if (data.business_unit !== undefined) db.positions[posIdx].business_unit = data.business_unit;
+      if (data.sub_function !== undefined) db.positions[posIdx].sub_function = data.sub_function;
+      if (data.designation !== undefined) db.positions[posIdx].title = data.designation;
+      if (data.reporting_to_id !== undefined) {
+        const mgr = db.employees.find(e => e.id === data.reporting_to_id);
+        if (mgr && mgr.position_id) {
+          db.positions[posIdx].reporting_to_position_id = mgr.position_id;
+        } else if (data.reporting_to_id === null) {
+          db.positions[posIdx].reporting_to_position_id = null;
+        }
       }
     }
   }
@@ -756,7 +878,20 @@ export const updatePosition = (id: string, updates: Partial<Position>) => {
     return db.positions[index];
   }
   return null;
-};// ─── WELLNESS OPERATIONS ──────────────────────────────────────────────
+};
+
+export const deletePosition = (id: string): boolean => {
+  const db = readDb();
+  const idx = db.positions?.findIndex(p => p.id === id);
+  if (idx !== -1 && idx !== undefined) {
+    db.positions.splice(idx, 1);
+    writeDb(db);
+    return true;
+  }
+  return false;
+};
+
+// ─── WELLNESS OPERATIONS ──────────────────────────────────────────────
 
 export const getQuestionnaires = (): Questionnaire[] => readDb().questionnaires;
 export const addQuestionnaire = (q: Questionnaire): Questionnaire => {
@@ -823,7 +958,7 @@ export const getDailyFeedbacks = (): DailyFeedback[] => readDb().daily_feedbacks
 export const addDailyFeedback = (f: DailyFeedback): DailyFeedback => {
   const db = readDb();
   db.daily_feedbacks.push(f);
-  writeDb(db);
+  writeDb(db, true);
   return f;
 };
 
@@ -1029,3 +1164,119 @@ export const resetDatabaseData = (): void => {
   }
 };
 
+// Document Templates
+export const getDocumentTemplates = (): DocumentTemplate[] => readDb().document_templates || [];
+export const getDocumentTemplateById = (id: string): DocumentTemplate | undefined => (readDb().document_templates || []).find(t => t.id === id);
+export const addDocumentTemplate = (template: DocumentTemplate): DocumentTemplate => {
+  const db = readDb();
+  if (!db.document_templates) db.document_templates = [];
+  db.document_templates.push(template);
+  writeDb(db);
+  return template;
+};
+export const updateDocumentTemplate = (id: string, updates: Partial<DocumentTemplate>): DocumentTemplate | null => {
+  const db = readDb();
+  if (!db.document_templates) db.document_templates = [];
+  const idx = db.document_templates.findIndex(t => t.id === id);
+  if (idx > -1) {
+    db.document_templates[idx] = { ...db.document_templates[idx], ...updates };
+    writeDb(db);
+    return db.document_templates[idx];
+  }
+  return null;
+};
+export const deleteDocumentTemplate = (id: string): DocumentTemplate | null => {
+  const db = readDb();
+  if (!db.document_templates) return null;
+  const idx = db.document_templates.findIndex(t => t.id === id);
+  if (idx > -1) {
+    const deleted = db.document_templates.splice(idx, 1)[0];
+    writeDb(db);
+    return deleted;
+  }
+  return null;
+};
+
+// Formula Components
+export const getFormulaComponents = (): FormulaComponent[] => readDb().formula_components || [];
+export const getFormulaComponentsByTemplateId = (templateId: string): FormulaComponent[] => (readDb().formula_components || []).filter(fc => fc.template_id === templateId);
+export const addFormulaComponent = (formula: FormulaComponent): FormulaComponent => {
+  const db = readDb();
+  if (!db.formula_components) db.formula_components = [];
+  db.formula_components.push(formula);
+  writeDb(db);
+  return formula;
+};
+export const updateFormulaComponent = (id: string, updates: Partial<FormulaComponent>): FormulaComponent | null => {
+  const db = readDb();
+  if (!db.formula_components) db.formula_components = [];
+  const idx = db.formula_components.findIndex(fc => fc.id === id);
+  if (idx > -1) {
+    db.formula_components[idx] = { ...db.formula_components[idx], ...updates };
+    writeDb(db);
+    return db.formula_components[idx];
+  }
+  return null;
+};
+export const deleteFormulaComponent = (id: string): FormulaComponent | null => {
+  const db = readDb();
+  if (!db.formula_components) return null;
+  const idx = db.formula_components.findIndex(fc => fc.id === id);
+  if (idx > -1) {
+    const deleted = db.formula_components.splice(idx, 1)[0];
+    writeDb(db);
+    return deleted;
+  }
+  return null;
+};
+
+// Generated Documents
+export const getGeneratedDocumentsByEmployee = (employeeId: string): GeneratedDocument[] => (readDb().generated_documents || []).filter(doc => doc.employee_id === employeeId);
+export const saveGeneratedDocument = (doc: GeneratedDocument): GeneratedDocument => {
+  const db = readDb();
+  if (!db.generated_documents) db.generated_documents = [];
+  const idx = db.generated_documents.findIndex(d => d.id === doc.id);
+  if (idx > -1) {
+    db.generated_documents[idx] = { ...db.generated_documents[idx], ...doc };
+  } else {
+    db.generated_documents.push(doc);
+  }
+  writeDb(db);
+  return doc;
+};
+
+// ─── OPBIE Knowledge Base CRUD ──────────────────────────────────────────────
+
+export const getOpbieKnowledge = (): OPBIEKnowledgeItem[] => readDb().opbie_knowledge || [];
+
+export const addOpbieKnowledge = (item: OPBIEKnowledgeItem): OPBIEKnowledgeItem => {
+  const db = readDb();
+  if (!db.opbie_knowledge) db.opbie_knowledge = [];
+  db.opbie_knowledge.push(item);
+  writeDb(db);
+  return item;
+};
+
+export const updateOpbieKnowledge = (id: string, updates: Partial<OPBIEKnowledgeItem>): OPBIEKnowledgeItem | null => {
+  const db = readDb();
+  if (!db.opbie_knowledge) db.opbie_knowledge = [];
+  const idx = db.opbie_knowledge.findIndex(k => k.id === id);
+  if (idx > -1) {
+    db.opbie_knowledge[idx] = { ...db.opbie_knowledge[idx], ...updates };
+    writeDb(db);
+    return db.opbie_knowledge[idx];
+  }
+  return null;
+};
+
+export const deleteOpbieKnowledge = (id: string): boolean => {
+  const db = readDb();
+  if (!db.opbie_knowledge) return false;
+  const idx = db.opbie_knowledge.findIndex(k => k.id === id);
+  if (idx > -1) {
+    db.opbie_knowledge.splice(idx, 1);
+    writeDb(db);
+    return true;
+  }
+  return false;
+};

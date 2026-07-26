@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { login, AuthUser } from '../lib/api';
+import { login, register, AuthUser } from '../lib/api';
 import { Eye, EyeOff, Layers, Lock, User, AlertCircle } from 'lucide-react';
 import { InternRegistration } from './InternRegistration';
 
@@ -14,6 +14,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loginMode, setLoginMode] = useState<'employee'|'intern_login'>('employee');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [employeeNumber, setEmployeeNumber] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
 
   React.useEffect(() => {
@@ -32,8 +34,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setError('');
     try {
       if (loginMode === 'employee') {
-        const user = await login(username.trim(), password);
-        onLogin(user);
+        if (isRegistering) {
+          if (!employeeNumber.trim()) throw new Error('Employee Number is required');
+          const user = await register(username.trim(), password, employeeNumber.trim());
+          onLogin(user);
+        } else {
+          const user = await login(username.trim(), password);
+          onLogin(user);
+        }
       } else {
         const { loginIntern } = await import('../lib/api');
         const intern = await loginIntern(username.trim(), password);
@@ -42,37 +50,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           username: intern.id,
           full_name: intern.name,
           role: 'Intern',
-          employee_id: intern.id
+          employee_id: null,
+          avatar: undefined
         } as AuthUser);
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      const msg = err.message || '';
+      const isFetchErr = msg.includes('fetch') || msg.includes('network') || msg.includes('Failed');
+      setError(isFetchErr 
+        ? '⚠️ Cannot connect to server. Please ensure the backend is running on port 3001.' 
+        : (isRegistering ? 'Registration failed.' : 'Invalid credentials. Please try again.'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickLogin = (u: string, roleType: 'employee' | 'intern' = 'employee') => {
-    if (roleType === 'intern') {
-      onLogin({
-        id: 'INT999',
-        username: 'INT999',
-        full_name: 'Test Intern',
-        role: 'Intern',
-        employee_id: 'INT999'
-      } as AuthUser);
-      return;
-    }
-
-    setUsername(u);
-    setPassword('password123');
-    // We need to wait for state to update, then submit.
-    // Easiest is to just call login directly
-    setLoading(true);
-    login(u, 'password123')
-      .then(user => onLogin(user))
-      .catch(err => setError(err.message || 'Login failed.'))
-      .finally(() => setLoading(false));
   };
 
   if (showRegistration) {
@@ -91,8 +81,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 shadow-md mb-4">
             <Layers className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-1">Axxel</h1>
-          <p className="text-slate-500 text-xs tracking-widest uppercase font-semibold">Org Structure Management</p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-1">ORG</h1>
+          <p className="text-slate-500 text-xs tracking-widest uppercase font-semibold">Enterprise Intelligence Platform</p>
         </div>
 
         {/* Card */}
@@ -113,11 +103,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </button>
           </div>
 
-          <h2 className="text-xl font-bold text-slate-900 mb-1">
-            {loginMode === 'employee' ? 'Welcome back' : 'Intern Portal'}
-          </h2>
-          <p className="text-slate-500 text-sm mb-6 font-medium">
-            {loginMode === 'employee' ? 'Sign in to your account' : 'Sign in with your INT ID'}
+          <h1 className="text-2xl font-black text-slate-900 mb-1.5 tracking-tight">
+            {loginMode === 'employee' ? (isRegistering ? 'Create your account' : 'Welcome back') : 'Intern Portal'}
+          </h1>
+          <p className="text-sm text-slate-500 font-medium mb-6">
+            {loginMode === 'employee' ? (isRegistering ? 'Sign up for a new account' : 'Sign in to your account') : 'Sign in with your INT ID'}
           </p>
 
           {error && (
@@ -128,6 +118,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {loginMode === 'employee' && isRegistering && (
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Employee Number</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-semibold text-slate-900 placeholder:font-medium placeholder:text-slate-400 transition-all outline-none"
+                    placeholder="Enter employee number (e.g. EMP1001)"
+                    value={employeeNumber}
+                    onChange={(e) => setEmployeeNumber(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Username */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Username</label>
@@ -181,23 +191,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                   </svg>
-                  Signing in…
+                  Processing…
                 </span>
-              ) : 'Sign In'}
+              ) : (loginMode === 'employee' && isRegistering ? 'Activate Account' : 'Sign In')}
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-3 text-center">Quick Login (Testing)</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <button type="button" onClick={() => handleQuickLogin('marcus')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">Admin</button>
-              <button type="button" onClick={() => handleQuickLogin('elena')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">Management</button>
-              <button type="button" onClick={() => handleQuickLogin('liam')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">HOD</button>
-              <button type="button" onClick={() => handleQuickLogin('michael')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">Manager</button>
-              <button type="button" onClick={() => handleQuickLogin('alex')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">Employee</button>
-              <button type="button" onClick={() => handleQuickLogin('INT999', 'intern')} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-colors border border-indigo-200">Intern</button>
+          {loginMode === 'employee' && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+              >
+                {isRegistering ? 'Already have an account? Sign In' : 'New User? Activate Account'}
+              </button>
             </div>
-          </div>
+          )}
           
           {loginMode === 'intern_login' && (
             <div className="mt-4 pt-4 border-t border-slate-100 text-center">
@@ -208,7 +218,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           )}
         </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">© 2026 Axxel Corp · Secured by Antigravity</p>
+        <div className="mt-6 text-center">
+          <button 
+            onClick={() => window.location.href = '?portal=candidate'}
+            className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2 mx-auto bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-200 shadow-sm mb-6"
+          >
+            ← Back to Candidate Portal
+          </button>
+        </div>
+
+        <div className="mt-2 pt-6 border-t border-slate-200/50 flex flex-col gap-2">
+          <div className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mb-1">Quick Login (Testing)</div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => onLogin({ id: 'EMP001', username: 'admin', full_name: 'Admin User', role: 'Admin', employee_id: 'EMP001' })} className="flex-1 text-[11px] py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 transition-colors">Admin</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP005', username: 'management', full_name: 'Management User', role: 'Management', employee_id: 'EMP005' })} className="flex-1 text-[11px] py-2 bg-amber-50 text-amber-700 rounded-lg font-bold hover:bg-amber-100 transition-colors">Management</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP004', username: 'hod', full_name: 'HOD User', role: 'HOD', employee_id: 'EMP004' })} className="flex-1 text-[11px] py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold hover:bg-emerald-100 transition-colors">HOD</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP002', username: 'manager', full_name: 'Manager User', role: 'Manager', employee_id: 'EMP002' })} className="flex-1 text-[11px] py-2 bg-purple-50 text-purple-700 rounded-lg font-bold hover:bg-purple-100 transition-colors">Manager</button>
+            <button type="button" onClick={() => onLogin({ id: 'EMP003', username: 'employee', full_name: 'Employee User', role: 'Employee', employee_id: 'EMP003' })} className="flex-1 text-[11px] py-2 bg-blue-50 text-blue-700 rounded-lg font-bold hover:bg-blue-100 transition-colors">Employee</button>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-slate-400 mt-8">© 2026 ORG Enterprise · Powered by Aira AI</p>
       </div>
     </div>
   );

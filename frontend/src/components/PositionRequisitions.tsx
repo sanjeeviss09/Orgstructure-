@@ -1,16 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { fetchRequisitions, createRequisition, updateRequisition, deleteRequisition, JobRequisition } from '../lib/recruitment_api';
+import { fetchEmployees, Employee } from '../lib/api';
 import { Plus, Link as LinkIcon, CheckCircle2, Trash2 } from 'lucide-react';
 
 export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeRole }) => {
   const [requisitions, setRequisitions] = useState<JobRequisition[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState('');
-  
+  const [jdFile, setJdFile] = useState<File | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Partial<JobRequisition>>({
     position_title: '',
     position_code: '',
     department: '',
+    sub_function: '',
     business_unit: '',
     location: '',
     position_type: 'New Position',
@@ -26,13 +30,52 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
     expected_joining_date: ''
   });
 
-  const loadData = () => fetchRequisitions().then(setRequisitions);
+  const empList = Array.isArray(employees) ? employees : [];
+  const departments = [...new Set(empList.map(e => e.department).filter(Boolean))].sort();
+
+  const subFunctions = useMemo(() => {
+    if (!formData.department) return [];
+    const sf = empList
+      .filter(e => e.department === formData.department && e.sub_function)
+      .map(e => e.sub_function as string);
+    return [...new Set(sf)].sort();
+  }, [empList, formData.department]);
+
+  const designations = useMemo(() => {
+    if (!formData.department) return [];
+    const ds = empList
+      .filter(e => e.department === formData.department && e.designation)
+      .map(e => e.designation);
+    return [...new Set(ds)].sort();
+  }, [empList, formData.department]);
+
+  const reportingMgrs = useMemo(() => {
+    const base = empList.filter(e => (e.role_tier || 5) < 5); // Managers (tier < 5)
+    const sameDept = base.filter(e => formData.department && e.department === formData.department).sort((a, b) => (a.role_tier || 5) - (b.role_tier || 5));
+    const otherDept = base.filter(e => !formData.department || e.department !== formData.department).sort((a, b) => (a.role_tier || 5) - (b.role_tier || 5));
+    return { sameDept, otherDept };
+  }, [empList, formData.department]);
+
+  const loadData = () => {
+    fetchRequisitions().then(setRequisitions);
+    fetchEmployees().then(setEmployees);
+  };
   useEffect(() => { loadData(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRequisition(formData);
+    if (jdFile || posterFile) {
+      const data = new FormData();
+      Object.keys(formData).forEach(key => data.append(key, String((formData as any)[key])));
+      if (jdFile) data.append('jd_file', jdFile);
+      if (posterFile) data.append('poster_file', posterFile);
+      await createRequisition(data);
+    } else {
+      await createRequisition(formData);
+    }
     setShowModal(false);
+    setJdFile(null);
+    setPosterFile(null);
     loadData();
   };
 
@@ -161,26 +204,95 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Position Title</label>
-                  <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.position_title} onChange={e => setFormData({...formData, position_title: e.target.value})} />
+                  <input required list="designation-list" type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.position_title} onChange={e => setFormData({...formData, position_title: e.target.value})} placeholder="Select or type..." />
+                  <datalist id="designation-list">
+                    {designations.map(d => <option key={d} value={d} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Department</label>
-                  <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
+                  <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value, sub_function: ''})}>
+                    <option value="" disabled>Select Department...</option>
+                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sub Function</label>
+                  <select className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.sub_function || ''} onChange={e => setFormData({...formData, sub_function: e.target.value})}>
+                    <option value="">Select Sub Function...</option>
+                    {subFunctions.map(sf => <option key={sf} value={sf}>{sf}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Location</label>
                   <input required type="text" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of Openings</label>
+                  <input required type="number" min="1" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.number_of_openings} onChange={e => setFormData({...formData, number_of_openings: parseInt(e.target.value) || 1})} />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Type</label>
-                  <select className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.position_type} onChange={e => setFormData({...formData, position_type: e.target.value as any})}>
+                  <select className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.position_type} onChange={e => setFormData({...formData, position_type: e.target.value as any, reporting_manager_id: '', replaced_employee_id: ''})}>
                     <option>New Position</option>
                     <option>Replacement Position</option>
                   </select>
                 </div>
+                
+                {formData.position_type === 'New Position' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Reporting Manager</label>
+                    <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.reporting_manager_id || ''} onChange={e => setFormData({...formData, reporting_manager_id: e.target.value})}>
+                      <option value="" disabled>Select Manager...</option>
+                      {reportingMgrs.sameDept.length > 0 && (
+                        <optgroup label={`${formData.department || 'Same'} Department`}>
+                          {reportingMgrs.sameDept.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {reportingMgrs.otherDept.length > 0 && (
+                        <optgroup label="Other Departments">
+                          {reportingMgrs.otherDept.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {formData.position_type === 'Replacement Position' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Employee to Replace</label>
+                    <select required className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white" value={formData.replaced_employee_id || ''} onChange={e => setFormData({...formData, replaced_employee_id: e.target.value})}>
+                      <option value="" disabled>Select Employee...</option>
+                      {employees.filter(e => e.employment_status === 'Serving Notice' || e.employment_status === 'Resigned').map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.designation})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Budgeted CTC (INR)</label>
+                  <input required type="number" min="0" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.budgeted_ctc} onChange={e => setFormData({...formData, budgeted_ctc: Number(e.target.value)})} />
+                </div>
+
                 <div className="col-span-2">
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Job Description</label>
-                  <textarea required rows={4} className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.job_description} onChange={e => setFormData({...formData, job_description: e.target.value})} />
+                  <textarea required rows={4} className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.job_description} onChange={e => setFormData({...formData, job_description: e.target.value})} placeholder="Enter job description or upload a JD PDF below..." />
+                  
+                  <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Upload JD Document (PDF - Optional)</label>
+                      <input type="file" accept=".pdf" className="text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onChange={e => setJdFile(e.target.files?.[0] || null)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Upload Job Poster (Image - Optional)</label>
+                      <input type="file" accept="image/*" className="text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100" onChange={e => setPosterFile(e.target.files?.[0] || null)} />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
