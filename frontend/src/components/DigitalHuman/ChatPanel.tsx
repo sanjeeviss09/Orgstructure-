@@ -20,7 +20,7 @@ interface ChatPanelProps {
   onClose: () => void;
   onAiraSpeaking: (speaking: boolean) => void;
   onNavigate?: (tab: string) => void;
-  pos?: { left: number; bottom: number };
+  pos?: { x: number; y: number };
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -215,7 +215,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div 
       className={`dh-chat-panel ${closing ? 'closing' : ''}`}
-      style={pos ? { left: Math.min(pos.left - 440, window.innerWidth - 440) > 0 ? pos.left - 440 : pos.left + 160, bottom: pos.bottom, right: 'auto', transformOrigin: 'bottom right' } : {}}
+      style={pos ? { marginRight: -pos.x, marginBottom: -pos.y, transformOrigin: 'bottom right' } : {}}
     >
       {/* ── Header ── */}
       <div style={{
