@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchRequisitions, createRequisition, updateRequisition, deleteRequisition, JobRequisition } from '../lib/recruitment_api';
 import { fetchEmployees, Employee } from '../lib/api';
 import { Plus, Link as LinkIcon, CheckCircle2, Trash2 } from 'lucide-react';
@@ -64,14 +65,19 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPayload = {
+      ...formData,
+      number_of_openings: Math.max(1, Number(formData.number_of_openings) || 1),
+      budgeted_ctc: Math.max(0, Number(formData.budgeted_ctc) || 0)
+    };
     if (jdFile || posterFile) {
       const data = new FormData();
-      Object.keys(formData).forEach(key => data.append(key, String((formData as any)[key])));
+      Object.keys(cleanPayload).forEach(key => data.append(key, String((cleanPayload as any)[key])));
       if (jdFile) data.append('jd_file', jdFile);
       if (posterFile) data.append('poster_file', posterFile);
       await createRequisition(data);
     } else {
-      await createRequisition(formData);
+      await createRequisition(cleanPayload);
     }
     setShowModal(false);
     setJdFile(null);
@@ -192,7 +198,7 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
         </table>
       </div>
 
-      {showModal && (
+      {showModal && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col pop-in">
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -229,7 +235,25 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of Openings</label>
-                  <input required type="number" min="1" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.number_of_openings} onChange={e => setFormData({...formData, number_of_openings: parseInt(e.target.value) || 1})} />
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    value={formData.number_of_openings ?? ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        number_of_openings: val === '' ? ('' as any) : parseInt(val)
+                      });
+                    }}
+                    onBlur={() => {
+                      if (!formData.number_of_openings || Number(formData.number_of_openings) < 1) {
+                        setFormData(prev => ({ ...prev, number_of_openings: 1 }));
+                      }
+                    }}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Type</label>
@@ -276,7 +300,26 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Budgeted CTC (INR)</label>
-                  <input required type="number" min="0" className="w-full px-3 py-2 rounded-xl border border-slate-200" value={formData.budgeted_ctc} onChange={e => setFormData({...formData, budgeted_ctc: Number(e.target.value)})} />
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                    value={formData.budgeted_ctc === 0 ? '' : (formData.budgeted_ctc ?? '')}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        budgeted_ctc: val === '' ? ('' as any) : Number(val)
+                      });
+                    }}
+                    onBlur={() => {
+                      if ((formData.budgeted_ctc as any) === '' || formData.budgeted_ctc === undefined) {
+                        setFormData(prev => ({ ...prev, budgeted_ctc: 0 }));
+                      }
+                    }}
+                  />
                 </div>
 
                 <div className="col-span-2">
@@ -301,7 +344,8 @@ export const PositionRequisitions: React.FC<{ activeRole: string }> = ({ activeR
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
