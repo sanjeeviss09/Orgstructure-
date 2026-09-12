@@ -227,16 +227,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </button>
         </div>
 
-        <div className="mt-2 pt-6 border-t border-slate-200/50 flex flex-col gap-2">
-          <div className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mb-1">Quick Login (Testing)</div>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => onLogin({ id: 'EMP001', username: 'admin', full_name: 'Admin User', role: 'Admin', employee_id: 'EMP001' })} className="flex-1 text-[11px] py-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 transition-colors">Admin</button>
-            <button type="button" onClick={() => onLogin({ id: 'EMP005', username: 'management', full_name: 'Management User', role: 'Management', employee_id: 'EMP005' })} className="flex-1 text-[11px] py-2 bg-amber-50 text-amber-700 rounded-lg font-bold hover:bg-amber-100 transition-colors">Management</button>
-            <button type="button" onClick={() => onLogin({ id: 'EMP004', username: 'hod', full_name: 'HOD User', role: 'HOD', employee_id: 'EMP004' })} className="flex-1 text-[11px] py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold hover:bg-emerald-100 transition-colors">HOD</button>
-            <button type="button" onClick={() => onLogin({ id: 'EMP002', username: 'manager', full_name: 'Manager User', role: 'Manager', employee_id: 'EMP002' })} className="flex-1 text-[11px] py-2 bg-purple-50 text-purple-700 rounded-lg font-bold hover:bg-purple-100 transition-colors">Manager</button>
-            <button type="button" onClick={() => onLogin({ id: 'EMP003', username: 'employee', full_name: 'Employee User', role: 'Employee', employee_id: 'EMP003' })} className="flex-1 text-[11px] py-2 bg-blue-50 text-blue-700 rounded-lg font-bold hover:bg-blue-100 transition-colors">Employee</button>
-          </div>
-        </div>
+
 
         <p className="text-center text-xs text-slate-400 mt-8">© 2026 ORG Enterprise · Powered by Aira AI</p>
       </div>

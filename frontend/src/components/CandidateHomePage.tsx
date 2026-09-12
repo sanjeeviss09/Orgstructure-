@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, MessageCircle, Star, TrendingUp, Users, Award, Sparkles, CheckCircle, Briefcase, GraduationCap, Heart, Send, FileText } from 'lucide-react';
+import { ArrowRight, MessageCircle, Star, TrendingUp, Users, Award, Sparkles, CheckCircle, Briefcase, GraduationCap, Heart, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -682,18 +682,7 @@ export const CandidateHomePage: React.FC<CandidateHomePageProps> = ({ onEnterPor
               View Offer Details
             </button>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-              <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
-              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Testing</div>
-              <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
-            </div>
 
-            <button 
-              onClick={() => onEnterPortal('offered')}
-              style={{ width: '100%', padding: '12px', borderRadius: 12, background: '#f1f5f9', color: '#475569', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}
-            >
-              <FileText size={16} /> Quick Login as Offered
-            </button>
 
             <button onClick={() => setShowOfferLogin(false)} style={{ width: '100%', padding: '12px', borderRadius: 12, background: 'transparent', color: '#94a3b8', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
               Cancel
