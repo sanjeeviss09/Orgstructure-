@@ -275,18 +275,7 @@ function App() {
                 <div className="text-sm font-bold text-slate-800 leading-tight">{displayName}</div>
                 <div className="text-xs text-slate-500 font-medium leading-tight">{user.role}</div>
               </div>
-              <button
-                onClick={async () => {
-                  if (confirm('Are you sure you want to reset all data to the initial mock state? This cannot be undone.')) {
-                    await fetch('http://localhost:3001/api/reset', { method: 'POST' });
-                    window.location.reload();
-                  }
-                }}
-                title="Reset Database to Mock State"
-                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              </button>
+
               <button
                 onClick={handleLogout}
                 title="Sign out"
