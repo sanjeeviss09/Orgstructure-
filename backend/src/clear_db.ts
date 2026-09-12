@@ -29,6 +29,16 @@ async function clearAndFreshSeed() {
     return;
   }
 
+  console.log('Clearing remote positions table...');
+  const { error: delPosError } = await supabase
+    .from('positions')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+  if (delPosError) {
+    console.error('Error clearing positions:', delPosError);
+    return;
+  }
+
   console.log('Clearing remote employees table...');
   const { error: delEmpError } = await supabase
     .from('employees')

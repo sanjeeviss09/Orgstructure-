@@ -7,7 +7,7 @@ import {
   Award, UserCheck, Mail, Briefcase, PieChart, Landmark,
   AlertTriangle, ArrowUpRight, ArrowDownRight,
   Target, ShieldAlert, Settings, Bot, Sparkles, X, Tag,
-  Download, Filter, Bell
+  Download, Filter, Bell, Search, RefreshCw
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -43,6 +43,7 @@ interface DashboardStatsProps {
   activeRole: Role;
   loggedInUser: AuthUser;
   employees: Employee[];
+  positions?: any[];
   onChartClick?: (type: 'hiring' | 'attrition' | 'budget') => void;
   onTargetsClick?: () => void;
   onNavigateToWellness?: () => void;
@@ -55,9 +56,12 @@ const fmt = (n: number) => {
 
 const fmtLakhCrore = (n: number) => {
   if (!n) return '₹0';
-  if (n >= 10000000) return `₹${+(n / 10000000).toFixed(2)} Cr`;
-  if (n >= 100000) return `₹${+(n / 100000).toFixed(2)} L`;
-  return fmt(n);
+  const isNeg = n < 0;
+  const abs = Math.abs(n);
+  let formatted = fmt(abs);
+  if (abs >= 10000000) formatted = `₹${+(abs / 10000000).toFixed(2)} Cr`;
+  else if (abs >= 100000) formatted = `₹${+(abs / 100000).toFixed(2)} L`;
+  return isNeg ? `-${formatted}` : formatted;
 };
 
 const KpiCard: React.FC<{ icon: React.ReactNode; iconBg: string; label: string; value: string; sub?: string; trend?: string; trendUp?: boolean; onClick?: () => void }> = ({ icon, iconBg, label, value, sub, trend, trendUp, onClick }) => (
@@ -136,7 +140,7 @@ const ProfileCard: React.FC<{ employee: Employee; manager?: Employee; peers: Emp
 );
 
 // ── Main Component ────────────────────────────────────────────────────
-export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, onChartClick, onTargetsClick, onNavigateToWellness }) => {
+export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, positions, onChartClick, onTargetsClick, onNavigateToWellness }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [aiStrategy, setAiStrategy] = useState<string>('');
@@ -154,6 +158,99 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
     if (!buFilter) return allDepartments;
     return [...new Set(employees.filter(e => e.business_unit === buFilter).map(e => e.department).filter(Boolean))].sort();
   }, [employees, buFilter, allDepartments]);
+
+  const [wpSearch, setWpSearch] = useState('');
+  const [wpDeptFilter, setWpDeptFilter] = useState('');
+  const [wpBuFilter, setWpBuFilter] = useState('');
+
+  const wpTable = stats?.workforcePlanningTable || [];
+
+  const wpDepts = React.useMemo(() => [...new Set(wpTable.map(r => r.department).filter(Boolean))].sort(), [wpTable]);
+  const wpBus = React.useMemo(() => [...new Set(wpTable.map(r => r.business_unit).filter(Boolean))].sort(), [wpTable]);
+
+  const filteredWpTable = React.useMemo(() => {
+    return wpTable.filter(row => {
+      if (wpSearch && !(row.position || '').toLowerCase().includes(wpSearch.toLowerCase()) && !(row.department || '').toLowerCase().includes(wpSearch.toLowerCase())) return false;
+      if (wpDeptFilter && row.department !== wpDeptFilter) return false;
+      if (wpBuFilter && row.business_unit !== wpBuFilter) return false;
+      return true;
+    });
+  }, [wpTable, wpSearch, wpDeptFilter, wpBuFilter]);
+
+  const filteredTotals = React.useMemo(() => {
+    const fBudgetHC = filteredWpTable.reduce((sum, row) => sum + (row.budgetHC || 0), 0);
+    const fBudgetCTC = filteredWpTable.reduce((sum, row) => sum + (row.budgetedCTC || 0), 0);
+    const fActiveHC = filteredWpTable.reduce((sum, row) => sum + (row.activeHC || 0), 0);
+    const fActiveCTC = filteredWpTable.reduce((sum, row) => sum + (row.activeCTC || 0), 0);
+    const fOfferedHC = filteredWpTable.reduce((sum, row) => sum + (row.offeredHC || 0), 0);
+    const fOfferedCTC = filteredWpTable.reduce((sum, row) => sum + (row.offeredCTC || 0), 0);
+    const fHoldHC = filteredWpTable.reduce((sum, row) => sum + (row.holdHC || 0), 0);
+    const fHoldCTC = filteredWpTable.reduce((sum, row) => sum + (row.holdCTC || 0), 0);
+    const fVacancyHC = filteredWpTable.reduce((sum, row) => sum + (row.vacancyHC || 0), 0);
+    const fVacancyCTC = filteredWpTable.reduce((sum, row) => sum + (row.vacancyCTC || 0), 0);
+    const fSavingsAmt = filteredWpTable.reduce((sum, row) => sum + (row.savingsAmount || 0), 0);
+    const fSavingsPct = fBudgetCTC > 0 ? ((fSavingsAmt / fBudgetCTC) * 100).toFixed(1) : '0.0';
+
+    return {
+      budgetHC: fBudgetHC, budgetCTC: fBudgetCTC,
+      activeHC: fActiveHC, activeCTC: fActiveCTC,
+      offeredHC: fOfferedHC, offeredCTC: fOfferedCTC,
+      holdHC: fHoldHC, holdCTC: fHoldCTC,
+      vacancyHC: fVacancyHC, vacancyCTC: fVacancyCTC,
+      savingsAmt: fSavingsAmt, savingsPct: fSavingsPct
+    };
+  }, [filteredWpTable]);
+  const topHealthScores = React.useMemo(() => {
+    const buHealthMap: Record<string, { active: number, budget: number }> = {};
+    const deptHealthMap: Record<string, { active: number, budget: number }> = {};
+    
+    if (wpTable) {
+      wpTable.forEach(row => {
+        const bu = row.business_unit || 'Unknown';
+        const d = row.department || 'Unknown';
+        if (!buHealthMap[bu]) buHealthMap[bu] = { active: 0, budget: 0 };
+        if (!deptHealthMap[d]) deptHealthMap[d] = { active: 0, budget: 0 };
+        
+        buHealthMap[bu].active += row.activeHC || 0;
+        buHealthMap[bu].budget += row.budgetHC || 0;
+        deptHealthMap[d].active += row.activeHC || 0;
+        deptHealthMap[d].budget += row.budgetHC || 0;
+      });
+    }
+
+    let topBu = { name: 'N/A', score: 0 };
+    let topDept = { name: 'N/A', score: 0 };
+
+    const buScores = Object.entries(buHealthMap).map(([name, data]) => ({
+      name,
+      score: data.budget > 0 ? Math.round((data.active / data.budget) * 100) : 0
+    })).sort((a, b) => b.score - a.score);
+
+    const deptScores = Object.entries(deptHealthMap).map(([name, data]) => ({
+      name,
+      score: data.budget > 0 ? Math.round((data.active / data.budget) * 100) : 0
+    })).sort((a, b) => b.score - a.score);
+
+    if (buScores.length > 0) topBu = buScores[0];
+    if (deptScores.length > 0) topDept = deptScores[0];
+
+    return { topBu, topDept };
+  }, [wpTable]);
+
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const freshStats = await fetchStats(buFilter, deptFilter);
+      setStats(freshStats);
+    } catch (e) {
+      console.error('Failed to refresh dashboard stats:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleGenerateStrategy = async () => {
     if (!stats) return;
@@ -191,7 +288,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
         .then(data => setAssignments(data))
         .catch(console.error);
     }
-  }, [employees, buFilter, deptFilter, loggedInUser, activeRole]);
+  }, [employees, positions, buFilter, deptFilter, loggedInUser, activeRole]);
 
   if (!stats) {
     return (
@@ -281,8 +378,6 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
 
   const utilizationPct = stats.totalBudget > 0 ? Math.round((stats.totalPayroll / stats.totalBudget) * 100) : 0;
 
-  const wpTable = stats.workforcePlanningTable || [];
-
   const overallBudgetCTC = stats.totalBudget || 0;
   const overallActiveCTC = stats.totalPayroll || 0;
   const overallOfferedCTC = stats.totalOffered || 0;
@@ -295,7 +390,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
   const totalSavingsPct = overallBudgetCTC > 0 ? ((totalSavingsAmt / overallBudgetCTC) * 100).toFixed(1) : 0;
 
   const exportWPToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(wpTable.map(row => ({
+    const ws = XLSX.utils.json_to_sheet(filteredWpTable.map(row => ({
       Position: row.position,
       'Department': row.department,
       'Budget HC': row.budgetHC,
@@ -322,7 +417,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
     autoTable(doc, {
       startY: 20,
       head: [['Position', 'Dept', 'Budget HC', 'Budget CTC', 'Active HC', 'Active CTC', 'Offered HC', 'Offered CTC', 'Hold HC', 'Hold CTC', 'Vacancy HC', 'Vacancy CTC', 'Variance', 'Variance %']],
-      body: wpTable.map(row => [
+      body: filteredWpTable.map(row => [
         row.position,
         row.department,
         row.budgetHC,
@@ -357,7 +452,15 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
 
 
   if (activeKpiDetails) {
-    return <KpiDetailsView kpiType={activeKpiDetails} onBack={() => setActiveKpiDetails(null)} formatCurrency={fmtLakhCrore} />;
+    return (
+      <KpiDetailsView 
+        kpiType={activeKpiDetails} 
+        onBack={() => setActiveKpiDetails(null)} 
+        formatCurrency={fmtLakhCrore} 
+        buFilter={buFilter}
+        deptFilter={deptFilter}
+      />
+    );
   }
 
   const pendingAssignments = assignments.filter(a => !a.completed_at);
@@ -391,6 +494,15 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
           </h2>
           {activeRole === 'Admin' && (
             <div className="flex gap-2">
+              <button 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-sm flex items-center gap-1.5 text-xs font-bold" 
+                title="Refresh Dashboard KPIs"
+              >
+                <RefreshCw className={`w-4 h-4 text-indigo-600 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
               <button 
                 onClick={onTargetsClick} 
                 className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-sm" 
@@ -466,8 +578,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <KpiCard icon={<Building2 className="w-5 h-5"/>} iconBg="bg-blue-50 text-blue-600" label="Overall Org Health" value={`${Math.max(0, Math.round((activeHC / (budgetHC || 1)) * 100 - (stats.attritionRate || 0)))} / 100`} sub="Based on Headcount & Attrition" />
-          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Top BU Health" value="92 / 100" sub="Corporate" />
-          <KpiCard icon={<Target className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Top Dept Health" value="88 / 100" sub="Engineering" />
+          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Top BU Health" value={`${topHealthScores.topBu.score} / 100`} sub={topHealthScores.topBu.name} />
+          <KpiCard icon={<Target className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Top Dept Health" value={`${topHealthScores.topDept.score} / 100`} sub={topHealthScores.topDept.name} />
         </div>
 
         {/* Headcount Intelligence */}
@@ -627,6 +739,60 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
                </button>
              </div>
            </div>
+            
+            {/* Table Inline Filters */}
+            <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center gap-3">
+              {/* Text Search */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={wpSearch}
+                  onChange={e => setWpSearch(e.target.value)}
+                  placeholder="Search position..."
+                  className="pl-9 pr-7 py-1.5 bg-white hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:border-indigo-400 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all w-48 shadow-sm"
+                />
+                {wpSearch && (
+                  <button 
+                    onClick={() => setWpSearch('')} 
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm font-bold"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* BU Filter */}
+              <select
+                value={wpBuFilter}
+                onChange={e => setWpBuFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 focus:ring-1 focus:ring-indigo-200 rounded-xl text-xs font-bold text-slate-600 outline-none shadow-sm cursor-pointer"
+              >
+                <option value="">All Business Units</option>
+                {wpBus.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+
+              {/* Dept Filter */}
+              <select
+                value={wpDeptFilter}
+                onChange={e => setWpDeptFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 focus:ring-1 focus:ring-indigo-200 rounded-xl text-xs font-bold text-slate-600 outline-none shadow-sm cursor-pointer"
+              >
+                <option value="">All Departments</option>
+                {wpDepts.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+
+              {/* Reset Filters button */}
+              {(wpSearch || wpBuFilter || wpDeptFilter) && (
+                <button
+                  onClick={() => { setWpSearch(''); setWpBuFilter(''); setWpDeptFilter(''); }}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold transition-colors ml-auto"
+                >
+                  Clear Table Filters
+                </button>
+              )}
+            </div>
+
            <div className="overflow-x-auto">
              <table className="w-full text-left text-[11px]">
                <thead className="bg-slate-800 text-white font-bold tracking-wider">
@@ -652,7 +818,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-200">
-                 {wpTable.map((row, idx) => {
+                 {filteredWpTable.map((row, idx) => {
                    const sPct = row.savingsPercentage || 0;
                    let heatmapClass = "bg-white text-slate-800";
                    if (sPct < 0) {
@@ -697,22 +863,29 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
                      </tr>
                    );
                  })}
+                  {filteredWpTable.length === 0 && (
+                    <tr>
+                      <td colSpan={14} className="px-4 py-8 text-center text-slate-500 font-semibold bg-white">
+                        No matching workforce budget records found.
+                      </td>
+                    </tr>
+                  )}
                </tbody>
                <tfoot className="bg-slate-100 font-black text-slate-800 border-t-2 border-slate-300">
                  <tr>
                    <td className="px-4 py-3 sticky left-0 z-10 bg-slate-100 border-r border-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">TOTALS</td>
-                   <td className="px-3 py-3 text-center text-blue-700 border-l border-blue-200">{budgetHC}</td>
-                   <td className="px-3 py-3 text-right border-r border-blue-200">{fmtLakhCrore(overallBudgetCTC)}</td>
-                   <td className="px-3 py-3 text-center text-emerald-700">{activeHC}</td>
-                   <td className="px-3 py-3 text-right border-r border-emerald-200">{fmtLakhCrore(overallActiveCTC)}</td>
-                   <td className="px-3 py-3 text-center text-purple-700">{offeredHC}</td>
-                   <td className="px-3 py-3 text-right border-r border-purple-200">{fmtLakhCrore(overallOfferedCTC)}</td>
-                   <td className="px-3 py-3 text-center text-slate-600">{holdHC}</td>
-                   <td className="px-3 py-3 text-right border-r border-slate-300">{fmtLakhCrore(overallHoldCTC)}</td>
-                   <td className="px-3 py-3 text-center text-rose-700">{vacancyHC}</td>
-                   <td className="px-3 py-3 text-right border-r border-rose-200">{fmtLakhCrore(overallVacancyCTC)}</td>
-                   <td className="px-4 py-3 text-right font-black text-indigo-700 border-l border-indigo-200">{fmtLakhCrore(totalSavingsAmt)}</td>
-                   <td className="px-4 py-3 text-right font-black text-indigo-700">{totalSavingsPct}%</td>
+                   <td className="px-3 py-3 text-center text-blue-700 border-l border-blue-200">{filteredTotals.budgetHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-blue-200">{fmtLakhCrore(filteredTotals.budgetCTC)}</td>
+                   <td className="px-3 py-3 text-center text-emerald-700">{filteredTotals.activeHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-emerald-200">{fmtLakhCrore(filteredTotals.activeCTC)}</td>
+                   <td className="px-3 py-3 text-center text-purple-700">{filteredTotals.offeredHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-purple-200">{fmtLakhCrore(filteredTotals.offeredCTC)}</td>
+                   <td className="px-3 py-3 text-center text-slate-600">{filteredTotals.holdHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-slate-300">{fmtLakhCrore(filteredTotals.holdCTC)}</td>
+                   <td className="px-3 py-3 text-center text-rose-700">{filteredTotals.vacancyHC}</td>
+                   <td className="px-3 py-3 text-right border-r border-rose-200">{fmtLakhCrore(filteredTotals.vacancyCTC)}</td>
+                   <td className="px-4 py-3 text-right font-black text-indigo-700 border-l border-indigo-200">{fmtLakhCrore(filteredTotals.savingsAmt)}</td>
+                   <td className="px-4 py-3 text-right font-black text-indigo-700">{filteredTotals.savingsPct}%</td>
                  </tr>
                </tfoot>
              </table>

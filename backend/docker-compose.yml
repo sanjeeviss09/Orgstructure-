@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  intelexp-backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: intelexp-backend-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      # LocalStack can be used here for local AWS mocking if needed
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      # Let the app know we are running in docker so we can mock/stub appropriately
+      - DOCKER_ENV=true
+    volumes:
+      # Mount .env if needed, though best practice is to pass via environment block
+      - ./.env.development:/usr/src/app/.env
+    restart: unless-stopped
+    networks:
+      - enterprise-net
+
+networks:
+  enterprise-net:
+    driver: bridge

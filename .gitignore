@@ -5,3 +5,8 @@ dist
 build
 .cache
 coverage
+venv/
+*.venv
+*.log
+backend/AXX/
+pyrightconfig.json

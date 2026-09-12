@@ -1,0 +1,28 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches: [ "develop" ]
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      
+    - name: Configure Kubernetes credentials
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_DEV }}
+        
+    - name: Helm Upgrade
+      run: |
+        helm upgrade --install aira-mcp ./backend-python/deployment/helm/aira-mcp \
+          --namespace aira-dev \
+          --create-namespace \
+          -f ./backend-python/deployment/helm/aira-mcp/values-dev.yaml \
+          --set image.tag=${{ github.sha }}

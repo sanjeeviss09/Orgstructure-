@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, UploadCloud, CheckCircle2, Building, MapPin, Briefcase } from 'lucide-react';
-import { submitCandidateApplication, fetchRequisitions, JobRequisition } from '../lib/recruitment_api';
+import { Layers, UploadCloud, CheckCircle2, Building, MapPin, Briefcase, Sparkles } from 'lucide-react';
+import { submitCandidateApplication, fetchRequisitions, JobRequisition, uploadResumeSmart, Candidate } from '../lib/recruitment_api';
 
 export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requisitionId }) => {
   const [req, setReq] = useState<JobRequisition | null>(null);
@@ -32,8 +32,39 @@ export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requ
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [candId, setCandId] = useState('');
+  const [aiResult, setAiResult] = useState<Candidate | null>(null);
 
   useEffect(() => {
+    if (requisitionId === 'SMART_APPLY') {
+      setReq({
+        id: 'SMART_APPLY',
+        position_title: 'Smart Resume Drop',
+        department: 'AI Matching',
+        location: 'Any',
+        employment_type: 'Full-time',
+        job_description: 'Upload your resume and our AI will automatically match you with the best available position at Axxel.',
+        status: 'Approved',
+        is_active_link: true,
+        number_of_openings: 0,
+        created_at: ''
+      } as JobRequisition);
+      return;
+    }
+    if (requisitionId === 'GENERAL') {
+      setReq({
+        id: 'GENERAL',
+        position_title: 'General Application / Resume Drop',
+        department: 'Various',
+        location: 'Any',
+        employment_type: 'Full-time',
+        job_description: 'Drop your resume here for future opportunities. We will contact you if your profile matches our requirements.',
+        status: 'Approved',
+        is_active_link: true,
+        number_of_openings: 0,
+        created_at: ''
+      } as JobRequisition);
+      return;
+    }
     fetchRequisitions().then(reqs => {
       const found = reqs.find(r => r.id === requisitionId);
       if (found) setReq(found);
@@ -66,6 +97,41 @@ export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requ
       setSubmitting(false);
     }
   };
+
+  if (aiResult) {
+    const avgScore = Math.round((
+      (aiResult.qualification_match || 0) + 
+      (aiResult.experience_match || 0) + 
+      (aiResult.industry_relevance || 0) + 
+      (aiResult.technical_fit || 0) + 
+      (aiResult.communication_skills || 0)
+    ) / 5 * 10);
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4">
+        <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100">
+          <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="w-10 h-10" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 mb-2">Smart Match Complete!</h2>
+          <p className="text-slate-500 mb-8">We analyzed your profile and found a great fit.</p>
+          
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left border border-slate-100">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Matched Position</div>
+            <div className="text-xl font-bold text-slate-900 mb-6">{aiResult.requisition_id}</div>
+            
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Suitability Score</div>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${avgScore >= 70 ? 'bg-green-500' : avgScore >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${avgScore}%` }}></div>
+              </div>
+              <div className="text-xl font-black text-slate-800">{avgScore}%</div>
+            </div>
+            <p className="text-sm text-slate-500 mt-4">Your candidate ID is <strong className="text-slate-800">{aiResult.id}</strong>. Our Talent Acquisition team will review your profile and get in touch.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -128,9 +194,46 @@ export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requ
         <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-6">Submit Your Application</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">First Name *</label>
+          {requisitionId === 'SMART_APPLY' ? (
+            <div className="mb-8">
+              <p className="text-sm text-slate-500 mb-6">Just upload your resume. Our AI will extract your details and evaluate you against all our open positions instantly.</p>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Resume (PDF/DOCX) *</label>
+              <label className="cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 px-6 py-8 rounded-2xl flex flex-col items-center gap-3 transition-colors text-sm font-medium text-indigo-700 flex-1 border-dashed text-center">
+                <UploadCloud className="w-8 h-8" />
+                <span>{files.resume ? files.resume.name : 'Click to browse or drag and drop'}</span>
+                <input type="file" required className="hidden" onChange={e => handleFileChange(e, 'resume')} accept=".pdf,.doc,.docx" />
+              </label>
+              
+              <div className="flex justify-end mt-8">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!files.resume) {
+                      alert("Please upload a resume");
+                      return;
+                    }
+                    setSubmitting(true);
+                    try {
+                      const cand = await uploadResumeSmart(files.resume);
+                      setAiResult(cand);
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to analyze resume');
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                  disabled={submitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 flex items-center gap-2"
+                >
+                  {submitting ? <span className="animate-pulse flex items-center gap-2"><Sparkles className="w-4 h-4" /> Analyzing...</span> : <span className="flex items-center gap-2"><Sparkles className="w-4 h-4" /> Smart Apply</span>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">First Name *</label>
               <input required type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} />
             </div>
             <div>
@@ -155,33 +258,37 @@ export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requ
             </div>
           </div>
 
-          <h3 className="text-sm font-bold text-slate-900 mb-4 border-b pb-2">Professional Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Company</label>
-              <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_company} onChange={e => setFormData({...formData, current_company: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Designation</label>
-              <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_designation} onChange={e => setFormData({...formData, current_designation: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Experience (Years)</label>
-              <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.total_experience} onChange={e => setFormData({...formData, total_experience: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Notice Period</label>
-              <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.notice_period} onChange={e => setFormData({...formData, notice_period: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current CTC (INR)</label>
-              <input type="number" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_ctc} onChange={e => setFormData({...formData, current_ctc: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Expected CTC (INR)</label>
-              <input type="number" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.expected_ctc} onChange={e => setFormData({...formData, expected_ctc: e.target.value})} />
-            </div>
-          </div>
+          {requisitionId !== 'GENERAL' && (
+            <>
+              <h3 className="text-sm font-bold text-slate-900 mb-4 border-b pb-2">Professional Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Company</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_company} onChange={e => setFormData({...formData, current_company: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Designation</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_designation} onChange={e => setFormData({...formData, current_designation: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Experience (Years)</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.total_experience} onChange={e => setFormData({...formData, total_experience: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Notice Period</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.notice_period} onChange={e => setFormData({...formData, notice_period: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current CTC (INR)</label>
+                  <input type="number" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.current_ctc} onChange={e => setFormData({...formData, current_ctc: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Expected CTC (INR)</label>
+                  <input type="number" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all" value={formData.expected_ctc} onChange={e => setFormData({...formData, expected_ctc: e.target.value})} />
+                </div>
+              </div>
+            </>
+          )}
 
           <h3 className="text-sm font-bold text-slate-900 mb-4 border-b pb-2">Documents</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -195,32 +302,38 @@ export const JobApplicationPortal: React.FC<{ requisitionId: string }> = ({ requ
                 </label>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payslips (Last 3 months) *</label>
-              <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl flex items-center gap-2 transition-colors text-sm font-medium text-slate-700">
-                <UploadCloud className="w-4 h-4" />
-                {files.payslips ? files.payslips.name : 'Choose file...'}
-                <input type="file" required className="hidden" onChange={e => handleFileChange(e, 'payslips')} accept=".pdf" />
-              </label>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Increment Letter (Optional)</label>
-              <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl flex items-center gap-2 transition-colors text-sm font-medium text-slate-700">
-                <UploadCloud className="w-4 h-4" />
-                {files.increment_letter ? files.increment_letter.name : 'Choose file...'}
-                <input type="file" className="hidden" onChange={e => handleFileChange(e, 'increment_letter')} accept=".pdf" />
-              </label>
-            </div>
+            {requisitionId !== 'GENERAL' && (
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payslips (Last 3 months) *</label>
+                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl flex items-center gap-2 transition-colors text-sm font-medium text-slate-700">
+                    <UploadCloud className="w-4 h-4" />
+                    {files.payslips ? files.payslips.name : 'Choose file...'}
+                    <input type="file" required className="hidden" onChange={e => handleFileChange(e, 'payslips')} accept=".pdf" />
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Increment Letter (Optional)</label>
+                  <label className="cursor-pointer bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl flex items-center gap-2 transition-colors text-sm font-medium text-slate-700">
+                    <UploadCloud className="w-4 h-4" />
+                    {files.increment_letter ? files.increment_letter.name : 'Choose file...'}
+                    <input type="file" className="hidden" onChange={e => handleFileChange(e, 'increment_letter')} accept=".pdf" />
+                  </label>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex justify-end">
-            <button
-              disabled={submitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200"
-            >
-              {submitting ? 'Submitting...' : 'Submit Application'}
-            </button>
-          </div>
+              <button
+                disabled={submitting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200"
+              >
+                {submitting ? 'Submitting...' : 'Submit Application'}
+              </button>
+            </div>
+            </>
+          )}
         </form>
       </div>
     </div>

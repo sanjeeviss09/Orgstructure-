@@ -1,9 +1,10 @@
-import express from 'express';
+import express from 'express'; 
 import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
+const pdfParse = require('pdf-parse');
 import {
   getJobRequisitions, addJobRequisition, updateJobRequisition, getJobRequisitionById, deleteJobRequisition,
   getCandidates, addCandidate, updateCandidate, getCandidateById, deleteCandidate, Candidate, JobRequisition,
@@ -15,43 +16,70 @@ import {
 
 export const recruitmentRouter = express.Router();
 
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
 // ─── SETUP MULTER FOR FILE UPLOADS ────────────────────────────────────
-const UPLOAD_BASE_DIR = 'B:\\Resume';
-
-// Ensure base dir exists
-if (!fs.existsSync(UPLOAD_BASE_DIR)) {
-  fs.mkdirSync(UPLOAD_BASE_DIR, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Generate a unique folder per candidate based on email or a temporary id
-    const candidateIdentifier = req.body.email || `temp_${Date.now()}`;
-    // Sanitize identifier
-    const safeIdentifier = candidateIdentifier.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const destDir = path.join(UPLOAD_BASE_DIR, safeIdentifier);
-    
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
-    }
-    cb(null, destDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
-  }
-});
-
+// Using memory storage so we can upload the buffer directly to Supabase or send via email
+const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+
+// Setup Nodemailer moved down
+
+// Helper function to upload file to Supabase Storage
+export const uploadFileToSupabase = async (file: Express.Multer.File | undefined, candidateId: string): Promise<string | undefined> => {
+  if (!file) return undefined;
+  try {
+    const ext = path.extname(file.originalname);
+    const fileName = `${candidateId}/${file.fieldname}_${Date.now()}${ext}`;
+    
+    const { error } = await supabase.storage.from('resumes').upload(fileName, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true
+    });
+    
+    if (error) {
+      console.error('Supabase upload error:', error.message);
+      return undefined;
+    }
+    
+    const { data } = supabase.storage.from('resumes').getPublicUrl(fileName);
+    return data.publicUrl;
+  } catch (err) {
+    console.error('Error uploading file:', err);
+    return undefined;
+  }
+};
+
+// Helper function to delete candidate files from Supabase Storage
+const deleteCandidateFiles = async (candidateId: string) => {
+  try {
+    const { data, error } = await supabase.storage.from('resumes').list(candidateId);
+    if (error || !data || data.length === 0) return;
+    
+    const filesToRemove = data.map(file => `${candidateId}/${file.name}`);
+    const { error: removeError } = await supabase.storage.from('resumes').remove(filesToRemove);
+    if (removeError) {
+      console.error('Failed to remove files from Supabase:', removeError.message);
+    } else {
+      console.log(`[SYSTEM] Deleted files for candidate ${candidateId} from Supabase.`);
+    }
+  } catch (err) {
+    console.error('Error deleting files:', err);
+  }
+};
 
 // ─── SETUP EMAIL SERVICE ─────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.supabase.co', // Use Supabase SMTP or generic
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
+  service: 'gmail',
   auth: {
-    user: process.env.SMTP_USER || 'test-user',
-    pass: process.env.SMTP_PASS || 'test-pass',
-  },
+    user: 'sanjeevinick09@gmail.com',
+    pass: 'nbkb drco vkqo julw'
+  }
 });
 
 const sendEmail = async (to: string, subject: string, text: string) => {
@@ -77,11 +105,66 @@ recruitmentRouter.get('/requisitions', (req, res) => {
   res.json(getJobRequisitions());
 });
 
-recruitmentRouter.post('/requisitions', (req, res) => {
+recruitmentRouter.post('/requisitions', upload.fields([{ name: 'jd_file', maxCount: 1 }, { name: 'poster_file', maxCount: 1 }]), async (req, res) => {
   try {
+    const reqId = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
+    let jd_url = '';
+    let extractedJDText = '';
+    let poster_url = '';
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+    if (files && files['jd_file'] && files['jd_file'][0]) {
+      const file = files['jd_file'][0];
+      jd_url = await uploadFileToSupabase(file, reqId) || '';
+      if (file.mimetype === 'application/pdf') {
+        const pdfData = await pdfParse(file.buffer);
+        extractedJDText = pdfData.text.trim();
+      }
+    }
+
+    if (files && files['poster_file'] && files['poster_file'][0]) {
+      const file = files['poster_file'][0];
+      poster_url = await uploadFileToSupabase(file, reqId) || '';
+    }
+
+    let reqPositionId = undefined;
+
+    if (req.body.position_type === 'Replacement Position' && req.body.replaced_employee_id) {
+      const replacedEmp = getEmployees().find(e => e.id === req.body.replaced_employee_id);
+      if (replacedEmp && replacedEmp.position_id) {
+        reqPositionId = replacedEmp.position_id;
+      }
+    } else {
+      reqPositionId = `P_${crypto.randomUUID().substring(0, 8)}`;
+      let reportingToPosId = null;
+      if (req.body.reporting_manager_id) {
+        const manager = getEmployees().find(e => e.id === req.body.reporting_manager_id);
+        if (manager && manager.position_id) {
+          reportingToPosId = manager.position_id;
+        }
+      }
+
+      const newPos: Position = {
+        id: reqPositionId,
+        title: req.body.position_title,
+        department: req.body.department,
+        business_unit: req.body.business_unit,
+        reporting_to_position_id: reportingToPosId,
+        status: 'V',
+        budgeted_ctc: Number(req.body.budgeted_ctc) || 0
+      };
+      addPosition(newPos);
+    }
+
     const newReq: JobRequisition = {
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: reqId,
       ...req.body,
+      job_description: extractedJDText ? `${req.body.job_description}\n\n[Parsed from JD Document]:\n${extractedJDText}` : req.body.job_description,
+      jd_url,
+      poster_url,
+      position_id: reqPositionId,
+      replaced_employee_id: req.body.replaced_employee_id,
       status: 'Pending HR',
       created_at: new Date().toISOString(),
       is_active_link: false,
@@ -91,6 +174,7 @@ recruitmentRouter.post('/requisitions', (req, res) => {
     addJobRequisition(newReq);
     res.status(201).json(newReq);
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: 'Failed to create requisition' });
   }
 });
@@ -141,9 +225,10 @@ recruitmentRouter.get('/candidates/:id', (req, res) => {
   }
 });
 
-recruitmentRouter.delete('/candidates/:id', (req, res) => {
+recruitmentRouter.delete('/candidates/:id', async (req, res) => {
   const deleted = deleteCandidate(req.params.id);
   if (deleted) {
+    await deleteCandidateFiles(req.params.id);
     res.json({ success: true, message: 'Candidate deleted successfully', candidate: deleted });
   } else {
     res.status(404).json({ error: 'Candidate not found' });
@@ -165,9 +250,18 @@ recruitmentRouter.post(
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const body = req.body;
+      const candId = `CAND-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      // Upload files to Supabase
+      const resume_url = await uploadFileToSupabase(files['resume']?.[0], candId);
+      const payslips_url = await uploadFileToSupabase(files['payslips']?.[0], candId);
+      const increment_letter_url = await uploadFileToSupabase(files['increment_letter']?.[0], candId);
+      const offer_letter_url = await uploadFileToSupabase(files['offer_letter']?.[0], candId);
+      const relieving_letter_url = await uploadFileToSupabase(files['relieving_letter']?.[0], candId);
+      const education_certificates_url = await uploadFileToSupabase(files['education_certificates']?.[0], candId);
 
       const newCand: Candidate = {
-        id: `CAND-${Math.floor(10000 + Math.random() * 90000)}`,
+        id: candId,
         requisition_id: body.requisition_id,
         first_name: body.first_name,
         last_name: body.last_name,
@@ -184,12 +278,12 @@ recruitmentRouter.post(
         notice_period: body.notice_period,
         reason_for_change: body.reason_for_change,
         
-        resume_url: files['resume']?.[0]?.path || '',
-        payslips_url: files['payslips']?.[0]?.path || '',
-        increment_letter_url: files['increment_letter']?.[0]?.path,
-        offer_letter_url: files['offer_letter']?.[0]?.path,
-        relieving_letter_url: files['relieving_letter']?.[0]?.path,
-        education_certificates_url: files['education_certificates']?.[0]?.path,
+        resume_url: resume_url || '',
+        payslips_url: payslips_url || '',
+        increment_letter_url: increment_letter_url,
+        offer_letter_url: offer_letter_url,
+        relieving_letter_url: relieving_letter_url,
+        education_certificates_url: education_certificates_url,
 
         status: 'Applied',
         applied_at: new Date().toISOString()
@@ -221,6 +315,177 @@ recruitmentRouter.post(
   }
 );
 
+// ─── AI RESUME UPLOAD ────────────────────────────────────────────────
+recruitmentRouter.post(
+  '/candidates/ai-upload',
+  upload.single('resume'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Resume file is required' });
+      }
+
+      // 1. Extract text from PDF
+      const pdfData = await pdfParse(req.file.buffer);
+      const resumeText = pdfData.text.substring(0, 4000); // Limit context length
+
+      // 2. Prepare Context (either specific req or all active reqs for auto-match)
+      let contextText = '';
+      let isAutoMatch = false;
+      const specificReqId = req.body.requisition_id;
+      
+      if (specificReqId) {
+        const reqObj = getJobRequisitionById(specificReqId);
+        if (!reqObj) return res.status(404).json({ error: 'Requisition not found' });
+        contextText = `
+        Job Requisition Title: ${reqObj.position_title} (ID: ${reqObj.id})
+        Required Experience: ${reqObj.required_experience}
+        Key Skills: ${reqObj.key_skills}
+        Job Description: ${reqObj.job_description}
+        `;
+      } else {
+        isAutoMatch = true;
+        const allReqs = getJobRequisitions().filter(r => ['Approved', 'Pending HR'].includes(r.status));
+        const reqsList = allReqs.map(r => `ID: ${r.id} | Title: ${r.position_title} | Skills: ${r.key_skills} | Description Snippet: ${r.job_description ? r.job_description.substring(0, 1000) : ''}`).join('\n\n');
+        contextText = `
+        Available Job Requisitions:
+        ${reqsList}
+        `;
+      }
+
+      // 3. Call NVIDIA AI to extract info and evaluate suitability
+      const promptText = `
+        You are an expert HR AI Assistant. 
+        Extract the candidate details from the provided resume text.
+        
+        ${isAutoMatch ? 'You MUST evaluate the candidate against the Available Job Requisitions provided above and output the ID of the single best matching requisition in "matched_requisition_id". If no good match, output the ID of the closest match.' : 'Evaluate the candidate for the provided Job Requisition.'}
+        
+        CRITICAL EXTRACTION RULES:
+        1. "total_experience": Calculate the precise total duration of all work experiences if not explicitly stated. Output clearly (e.g., '5 Years').
+        2. "relevant_experience": Estimate the exact years of experience highly relevant to their primary role or the matched requisition.
+        3. "location": Extract the candidate's current residential city and state (or country) EXACTLY as written in their contact information. Do NOT guess or hallucinate locations.
+        
+        Context:
+        ${contextText}
+
+        Resume Text:
+        ${resumeText}
+
+        Respond ONLY with a valid JSON object matching this exact structure (no markdown formatting, just raw JSON):
+        {
+          "matched_requisition_id": "String (Only required if auto-matching)",
+          "first_name": "String",
+          "last_name": "String",
+          "email": "String (extract or guess if missing)",
+          "mobile_number": "String (extract or guess if missing)",
+          "location": "String",
+          "highest_qualification": "String",
+          "current_company": "String",
+          "current_designation": "String",
+          "total_experience": "String (e.g. '5 Years')",
+          "relevant_experience": "String",
+          "qualification_match": "Number 1-10",
+          "experience_match": "Number 1-10",
+          "industry_relevance": "Number 1-10",
+          "technical_fit": "Number 1-10",
+          "communication_skills": "Number 1-10"
+        }
+      `;
+
+      const aiRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer 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'
+        },
+        body: JSON.stringify({
+          model: 'meta/llama-3.1-8b-instruct',
+          messages: [
+            { role: 'system', content: 'You are an HR AI parsing resumes and outputting ONLY strict raw JSON.' },
+            { role: 'user', content: promptText }
+          ],
+          temperature: 0.1,
+          max_tokens: 800
+        })
+      });
+
+      let aiData;
+      let extracted;
+      if (aiRes.ok) {
+        aiData = await aiRes.json();
+        try {
+          let content = aiData.choices[0].message.content.trim();
+          if (content.startsWith('```json')) {
+            content = content.replace(/^```json/, '').replace(/```$/, '').trim();
+          } else if (content.startsWith('```')) {
+            content = content.replace(/^```/, '').replace(/```$/, '').trim();
+          }
+          extracted = JSON.parse(content);
+        } catch (e) {
+          console.error('Failed to parse AI JSON:', aiData.choices[0].message.content);
+        }
+      }
+
+      if (!extracted) {
+         return res.status(500).json({ error: 'AI failed to extract structured JSON' });
+      }
+
+      const candId = `CAND-${Math.floor(10000 + Math.random() * 90000)}`;
+      const resume_url = await uploadFileToSupabase(req.file, candId);
+
+      const finalReqId = isAutoMatch ? extracted.matched_requisition_id : specificReqId;
+      const reqObj = getJobRequisitionById(finalReqId);
+      if (!reqObj) {
+         return res.status(404).json({ error: `Matched Requisition ${finalReqId} not found` });
+      }
+
+      const newCand: Candidate = {
+        id: candId,
+        requisition_id: finalReqId,
+        first_name: extracted.first_name || 'Unknown',
+        last_name: extracted.last_name || 'Unknown',
+        email: extracted.email || 'unknown@example.com',
+        mobile_number: extracted.mobile_number || 'N/A',
+        location: extracted.location || 'Unknown',
+        highest_qualification: extracted.highest_qualification || '',
+        current_company: extracted.current_company || '',
+        current_designation: extracted.current_designation || '',
+        total_experience: String(extracted.total_experience || '0 Years'),
+        relevant_experience: String(extracted.relevant_experience || ''),
+        current_ctc: 0,
+        expected_ctc: 0,
+        notice_period: extracted.notice_period || 'N/A',
+        resume_url: resume_url || '',
+        payslips_url: '',
+        
+        status: 'HR Review', // Automatically Shortlisted
+        applied_at: new Date().toISOString(),
+        
+        // Auto Pre-Screen Scores
+        qualification_match: Number(extracted.qualification_match) || 5,
+        experience_match: Number(extracted.experience_match) || 5,
+        industry_relevance: Number(extracted.industry_relevance) || 5,
+        technical_fit: Number(extracted.technical_fit) || 5,
+        communication_skills: Number(extracted.communication_skills) || 5,
+        salary_alignment: 5, // Default/Placeholder
+        recruiter_recommendation: 'Shortlist',
+        recruiter_remarks: 'AI Evaluated and automatically Shortlisted based on resume parse.'
+      };
+
+      addCandidate(newCand);
+      
+      updateJobRequisition(reqObj.id, {
+        applications_received: (reqObj.applications_received || 0) + 1
+      });
+
+      res.status(201).json(newCand);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Failed to process AI resume upload' });
+    }
+  }
+);
+
 recruitmentRouter.put('/candidates/:id', async (req, res) => {
   const cand = getCandidateById(req.params.id);
   if (!cand) return res.status(404).json({ error: 'Candidate not found' });
@@ -229,10 +494,10 @@ recruitmentRouter.put('/candidates/:id', async (req, res) => {
   const updated = updateCandidate(req.params.id, req.body);
   
   if (updated && updated.status !== oldStatus) {
-    if (updated.status === 'Rejected') {
+    if (updated.status === 'Rejected' || updated.status === 'Withdrawn') {
       await sendEmail(updated.email, 'Application Update - Axxel', 'We regret to inform you that we will not be moving forward with your application at this time.');
-    }
-    if (updated.status === 'Joining' && oldStatus !== 'Joining') {
+      await deleteCandidateFiles(updated.id);
+    } else if (updated.status === 'Joining' && oldStatus !== 'Joining') {
       // Integration point: Automatic Employee Creation
       handleCandidateJoining(updated);
     }
@@ -268,6 +533,7 @@ recruitmentRouter.post('/candidates/:id/hrapproval', async (req, res) => {
   if (updated) {
     if (action === 'Reject') {
       await sendEmail(updated.email, 'Application Update - Axxel', 'We regret to inform you that we will not be moving forward with your application at this time.');
+      await deleteCandidateFiles(updated.id);
     }
     res.json(updated);
   } else {
@@ -331,6 +597,9 @@ recruitmentRouter.put('/interviews/:id/evaluate', async (req, res) => {
     const candStatus = updated.overall_recommendation === 'Select' ? 'Selected' : 
                        updated.overall_recommendation === 'Reject' ? 'Rejected' : 'Hold';
     updateCandidate(updated.candidate_id, { status: candStatus });
+    if (candStatus === 'Rejected') {
+      await deleteCandidateFiles(updated.candidate_id);
+    }
     res.json(updated);
   } else {
     res.status(404).json({ error: 'Interview not found' });
@@ -426,6 +695,7 @@ recruitmentRouter.put('/budget-exceptions/:id/approve', async (req, res) => {
     if (offer) {
       updateOffer(offer.id, { status: 'Offer Declined' });
       updateCandidate(offer.candidate_id, { status: 'Rejected' });
+      await deleteCandidateFiles(offer.candidate_id);
     }
   }
 
@@ -453,6 +723,8 @@ recruitmentRouter.put('/offers/:id/approve', async (req, res) => {
     }
   } else if (action === 'Reject') {
     newStatus = 'Offer Declined'; // Internal rejection stops the offer
+    updateCandidate(offer.candidate_id, { status: 'Rejected' });
+    await deleteCandidateFiles(offer.candidate_id);
   }
 
   const updated = updateOffer(req.params.id, { status: newStatus });
@@ -460,15 +732,128 @@ recruitmentRouter.put('/offers/:id/approve', async (req, res) => {
 });
 
 recruitmentRouter.put('/offers/:id/candidate-action', async (req, res) => {
-  const { action } = req.body; // 'Accept', 'Decline'
-  const newStatus = action === 'Accept' ? 'Offer Accepted' : 'Offer Declined';
+  const { action, message } = req.body; // 'Accept', 'Decline', 'Clarification'
+  
+  const offer = getOfferById(req.params.id);
+  if (!offer) {
+    return res.status(404).json({ error: 'Offer not found' });
+  }
+
+  let newStatus = offer.status;
+  let candStatus: string = '';
+
+  if (action === 'Accept') {
+    newStatus = 'Offer Accepted';
+    candStatus = 'Offer Accepted';
+    // Send confirmation email
+    const cand = getCandidateById(offer.candidate_id);
+    if (cand) {
+      try {
+        await transporter.sendMail({
+          from: '"ORG Enterprise HR" <sanjeevinick09@gmail.com>',
+          to: cand.email,
+          subject: `Offer Accepted - Welcome to ORG Enterprise!`,
+          html: `
+            <div style="font-family: sans-serif; color: #333;">
+              <h2>Welcome aboard, ${cand.first_name}! 🎉</h2>
+              <p>We have successfully received your offer acceptance. We are thrilled to have you join our team.</p>
+              <p>The HR team will reach out shortly regarding your onboarding schedule.</p>
+              <br/>
+              <p>Best regards,<br/>ORG Enterprise Talent Team</p>
+            </div>
+          `
+        });
+      } catch (e) {
+        console.error('Failed to send confirmation email', e);
+      }
+    }
+  } else if (action === 'Decline') {
+    newStatus = 'Offer Declined';
+    candStatus = 'Withdrawn';
+  } else if (action === 'Clarification') {
+    newStatus = 'Clarification Requested' as any; // Adding dynamic cast for new status
+    candStatus = 'Offer Released'; // still released, just asking questions
+    // In a real app we'd save the message/chat to DB
+    console.log(`Candidate ${offer.candidate_id} requested clarification on Offer ${offer.id}: ${message}`);
+  }
   
   const updated = updateOffer(req.params.id, { status: newStatus });
   if (updated) {
-    updateCandidate(updated.candidate_id, { status: action === 'Accept' ? 'Offer Accepted' : 'Withdrawn' });
+    updateCandidate(updated.candidate_id, { status: candStatus as any });
+    if (action === 'Decline') {
+      await deleteCandidateFiles(updated.candidate_id);
+    }
     res.json(updated);
   } else {
     res.status(404).json({ error: 'Offer not found' });
+  }
+});
+
+// Send Email Route
+recruitmentRouter.post('/offers/:id/send-email', upload.array('attachments'), async (req, res) => {
+  try {
+    const offer = getOfferById(req.params.id);
+    if (!offer) return res.status(404).json({ error: 'Offer not found' });
+    
+    const cand = getCandidateById(offer.candidate_id);
+    if (!cand) return res.status(404).json({ error: 'Candidate not found' });
+
+    const emailBody = req.body.body || `
+      <div style="font-family: sans-serif; color: #333;">
+        <h2>Offer from ORG Enterprise</h2>
+        <p>Dear ${cand.first_name},</p>
+        <p>We are delighted to extend you an offer for the position of <strong>${offer.designation}</strong>.</p>
+        <p>Your Total CTC is <strong>₹${offer.offered_ctc.toLocaleString('en-IN')}</strong>.</p>
+        <p>Please review the attached documents and let us know your decision via the candidate portal.</p>
+        <br/>
+        <p>Best regards,<br/>ORG Enterprise Talent Team</p>
+      </div>
+    `;
+
+    // Prepare attachments: The auto-generated offer letter + any user uploaded files
+    const attachments: any[] = [];
+
+    // Mock generated Offer Letter PDF (using HTML content as a PDF replacement for now, or just plain HTML attachment)
+    const offerLetterContent = `
+      <h1>Offer Letter</h1>
+      <p>Candidate: ${cand.first_name} ${cand.last_name}</p>
+      <p>Designation: ${offer.designation}</p>
+      <p>CTC: ${offer.offered_ctc}</p>
+      <p>Joining Date: ${offer.joining_date}</p>
+      <p>Welcome to the team!</p>
+    `;
+    attachments.push({
+      filename: `Offer_Letter_${cand.first_name}.html`,
+      content: offerLetterContent
+    });
+
+    // Add user uploaded attachments
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files) {
+        attachments.push({
+          filename: file.originalname,
+          content: file.buffer
+        });
+      }
+    }
+
+    // Send via Nodemailer
+    await transporter.sendMail({
+      from: '"ORG Enterprise HR" <sanjeevinick09@gmail.com>',
+      to: cand.email,
+      subject: req.body.subject || `Offer of Employment: ${offer.designation} at ORG Enterprise`,
+      html: emailBody,
+      attachments
+    });
+
+    // Update statuses
+    updateOffer(offer.id, { status: 'Offer Sent' });
+    updateCandidate(cand.id, { status: 'Offer Released' });
+
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error: any) {
+    console.error('Email send error:', error);
+    res.status(500).json({ error: 'Failed to send email', details: error.message });
   }
 });
 
@@ -561,30 +946,15 @@ const handleCandidateJoining = (cand: Candidate) => {
   const offerObj = getOffers().find(o => o.candidate_id === cand.id);
 
   // Determine Position ID logic
-  const positions = getPositions();
   let posId = `P_${crypto.randomUUID().substring(0, 8)}`;
   
-  if (reqObj) {
-    if (reqObj.position_type === 'Replacement Position') {
-      // Find a vacant position in that department with that title? Or just create a new one representing the replacement
-      const vacantPos = positions.find(p => p.department === reqObj.department && p.title === reqObj.position_title && p.status === 'V');
-      if (vacantPos) {
-        posId = vacantPos.id;
-        updatePosition(vacantPos.id, { status: 'A' });
-      }
-    } else {
-      // New Position, headcount automatically increases as we just create a new position
-      const newPos: Position = {
-        id: posId,
-        title: reqObj.position_title,
-        department: reqObj.department,
-        business_unit: reqObj.business_unit,
-        reporting_to_position_id: null,
-        status: 'A',
-        budgeted_ctc: offerObj ? offerObj.offered_ctc : reqObj.budgeted_ctc
-      };
-      addPosition(newPos);
-    }
+  if (reqObj && reqObj.position_id) {
+    posId = reqObj.position_id;
+    // Update the position to Active, and update final budgeted CTC based on offer if needed
+    updatePosition(posId, { 
+      status: 'A',
+      budgeted_ctc: offerObj ? offerObj.offered_ctc : reqObj.budgeted_ctc
+    });
   }
 
   const newEmp: Employee = {

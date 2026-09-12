@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchDashboardMetrics } from '../lib/recruitment_api';
-import { Briefcase, Users, UserCheck, Clock, DollarSign, Target, FileText, BarChart2 } from 'lucide-react';
+import { Briefcase, Users, UserCheck, Clock, DollarSign, Target, FileText, BarChart2, Archive } from 'lucide-react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement
@@ -10,6 +10,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 
 export const RecruitmentDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<any>(null);
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     fetchDashboardMetrics().then(setMetrics);
@@ -19,6 +20,43 @@ export const RecruitmentDashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end mb-[-1rem] relative">
+        <input 
+          type="file" 
+          id="dashboard-resume-upload" 
+          className="hidden" 
+          accept=".pdf" 
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            
+            setShowToast(true);
+            try {
+              const data = new FormData();
+              data.append('resume', file);
+              const { submitCandidateAIUpload } = await import('../lib/recruitment_api');
+              await submitCandidateAIUpload(data);
+              alert("Success: Candidate auto-matched and added to pipeline!");
+            } catch (err: any) {
+              alert("Failed to upload: " + err.message);
+            } finally {
+              setShowToast(false);
+              e.target.value = ''; // Reset input
+            }
+          }}
+        />
+        <label 
+          htmlFor="dashboard-resume-upload"
+          title="Auto-Match Resume to Pipeline"
+          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-2.5 rounded-xl font-bold flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+        >
+          {showToast ? (
+            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Archive className="w-5 h-5" />
+          )}
+        </label>
+      </div>
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {[

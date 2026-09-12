@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchUserEngagement, UserEngagement, DEFAULT_AVATAR } from '../lib/api';
 import {
   BarChart2, Search, X, RefreshCw, Users,
@@ -105,9 +106,9 @@ const DrilldownModal: React.FC<DrilldownModalProps> = ({ emp, onClose }) => {
     },
   ];
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
@@ -201,7 +202,8 @@ const DrilldownModal: React.FC<DrilldownModalProps> = ({ emp, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
