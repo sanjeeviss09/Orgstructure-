@@ -200,6 +200,42 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
       savingsAmt: fSavingsAmt, savingsPct: fSavingsPct
     };
   }, [filteredWpTable]);
+  const topHealthScores = React.useMemo(() => {
+    const buHealthMap: Record<string, { active: number, budget: number }> = {};
+    const deptHealthMap: Record<string, { active: number, budget: number }> = {};
+    
+    if (wpTable) {
+      wpTable.forEach(row => {
+        const bu = row.business_unit || 'Unknown';
+        const d = row.department || 'Unknown';
+        if (!buHealthMap[bu]) buHealthMap[bu] = { active: 0, budget: 0 };
+        if (!deptHealthMap[d]) deptHealthMap[d] = { active: 0, budget: 0 };
+        
+        buHealthMap[bu].active += row.activeHC || 0;
+        buHealthMap[bu].budget += row.budgetHC || 0;
+        deptHealthMap[d].active += row.activeHC || 0;
+        deptHealthMap[d].budget += row.budgetHC || 0;
+      });
+    }
+
+    let topBu = { name: 'N/A', score: 0 };
+    let topDept = { name: 'N/A', score: 0 };
+
+    const buScores = Object.entries(buHealthMap).map(([name, data]) => ({
+      name,
+      score: data.budget > 0 ? Math.round((data.active / data.budget) * 100) : 0
+    })).sort((a, b) => b.score - a.score);
+
+    const deptScores = Object.entries(deptHealthMap).map(([name, data]) => ({
+      name,
+      score: data.budget > 0 ? Math.round((data.active / data.budget) * 100) : 0
+    })).sort((a, b) => b.score - a.score);
+
+    if (buScores.length > 0) topBu = buScores[0];
+    if (deptScores.length > 0) topDept = deptScores[0];
+
+    return { topBu, topDept };
+  }, [wpTable]);
 
 
   const [refreshing, setRefreshing] = useState(false);
@@ -542,8 +578,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <KpiCard icon={<Building2 className="w-5 h-5"/>} iconBg="bg-blue-50 text-blue-600" label="Overall Org Health" value={`${Math.max(0, Math.round((activeHC / (budgetHC || 1)) * 100 - (stats.attritionRate || 0)))} / 100`} sub="Based on Headcount & Attrition" />
-          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Top BU Health" value="92 / 100" sub="Corporate" />
-          <KpiCard icon={<Target className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Top Dept Health" value="88 / 100" sub="Engineering" />
+          <KpiCard icon={<PieChart className="w-5 h-5"/>} iconBg="bg-indigo-50 text-indigo-600" label="Top BU Health" value={`${topHealthScores.topBu.score} / 100`} sub={topHealthScores.topBu.name} />
+          <KpiCard icon={<Target className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" label="Top Dept Health" value={`${topHealthScores.topDept.score} / 100`} sub={topHealthScores.topDept.name} />
         </div>
 
         {/* Headcount Intelligence */}
