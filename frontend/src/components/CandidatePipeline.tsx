@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchCandidates, updateCandidateStatus, Candidate, CandidateStatus, submitPreScreening, submitHRApproval, deleteCandidate, scheduleInterview, fetchRequisitions, JobRequisition, submitCandidateApplication, submitCandidateAIUpload, updateCandidateDetails } from '../lib/recruitment_api';
 import { Mail, Phone, Calendar, UserPlus, XCircle, Trash2, Video, MapPin, UploadCloud, Download, Bot, Edit2 } from 'lucide-react';
 
@@ -346,7 +347,7 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
         </table>
       </div>
 
-      {showPreScreenModal && selectedCandidate && (
+      {showPreScreenModal && selectedCandidate && createPortal((
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col pop-in" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
             
@@ -419,10 +420,10 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
 
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ── INTERVIEW SCHEDULING MODAL ── */}
-      {showScheduleModal && schedulingCandidate && (
+      {showScheduleModal && schedulingCandidate && createPortal((
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             
@@ -504,10 +505,10 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
 
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ── MANUAL ADD CANDIDATE MODAL ── */}
-      {showManualAddModal && (
+      {showManualAddModal && createPortal((
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
@@ -614,10 +615,10 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
             </form>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ── AI RESUME UPLOAD MODAL ── */}
-      {showAIUploadModal && (
+      {showAIUploadModal && createPortal((
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-purple-50/50">
@@ -660,10 +661,10 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
             </form>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ── EDIT COMPENSATION MODAL ── */}
-      {showEditCompModal && editCompCandidate && (
+      {showEditCompModal && editCompCandidate && createPortal((
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col pop-in">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -697,7 +698,7 @@ export const CandidatePipeline: React.FC<{ activeRole: string }> = ({ activeRole
             </form>
           </div>
         </div>
-      )}
+      ), document.body)}
 
     </div>
   );
