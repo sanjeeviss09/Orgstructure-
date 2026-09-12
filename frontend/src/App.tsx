@@ -22,8 +22,6 @@ import { CandidateHomePage } from './components/CandidateHomePage';
 import { CareersPortal } from './components/CareersPortal';
 import { CandidateOfferPortal } from './components/CandidateOfferPortal';
 import { DocumentTemplateManager } from './components/TemplateManager/DocumentTemplateManager';
-import { DigitalHumanCompanion } from './components/DigitalHuman/DigitalHumanCompanion';
-import { AiraKnowledgeBase } from './components/AiraKnowledgeBase';
 import { BrainCircuit } from 'lucide-react';
 
 export type Role = 'Admin' | 'Management' | 'HOD' | 'Manager' | 'Employee' | 'Intern' | 'Candidate';
@@ -347,6 +345,7 @@ function App() {
               activeRole={activeRole}
               loggedInUser={user}
               employees={employees}
+              positions={positions}
               onChartClick={navigateToDetailedAnalytics}
               onTargetsClick={() => {
                 setActiveTab('targets');
@@ -437,11 +436,7 @@ function App() {
             <DocumentTemplateManager />
           )}
 
-          {activeTab === 'aira_knowledge' && (
-            <AiraKnowledgeBase />
-          )}
-
-          {['appraisals'].includes(activeTab) && (
+          {['appraisals', 'aira_knowledge', 'opbie'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border border-slate-200/80 shadow-sm min-h-[50vh]">
               <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mb-6">
                 <Sparkles className="w-8 h-8" />
@@ -476,20 +471,7 @@ function App() {
         </button>
       )}
 
-      {/* Aira Digital Human Companion */}
-      <div className="fixed bottom-4 right-[90px] z-50">
-        <DigitalHumanCompanion
-          user={user}
-          activeTab={activeTab}
-          employees={employees}
-          positions={positions}
-          onNavigate={(tab) => {
-            setActiveTab(tab as Tab);
-            setNavHistory([{ tab: tab as Tab }]);
-          }}
-          context="dashboard"
-        />
-      </div>
+      {/* Removed Aira Digital Human Companion for future implementation */}
     </div>
   );
 }

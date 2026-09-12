@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { fetchOffers, fetchCandidates, candidateActionOffer, Offer, Candidate } from '../lib/recruitment_api';
-import { CheckCircle, MessageCircle, FileUp, Send, FileText, Check, AlertTriangle, X } from 'lucide-react';
-import { DigitalHumanCompanion } from './DigitalHuman/DigitalHumanCompanion';
+import { CheckCircle, MessageCircle, FileUp, Send, FileText, Check, AlertTriangle, X, Sparkles } from 'lucide-react';
 
 export const CandidateOfferPortal: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
-  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clarificationMsg, setClarificationMsg] = useState('');
   const [showClarification, setShowClarification] = useState(false);
@@ -23,7 +21,6 @@ export const CandidateOfferPortal: React.FC<{ onLogout: () => void }> = ({ onLog
       const saved = localStorage.getItem('ag_user');
       const authUser = saved ? JSON.parse(saved) : null;
       if (authUser && authUser.id.startsWith('OFR-')) {
-        setUser(authUser);
         // Find the candidate that matches this test login
         const cands = await fetchCandidates();
         const cand = cands.find(c => c.first_name.includes('Offered') || c.id === 'CAND-001'); // Fallback to first cand for testing if needed
@@ -192,10 +189,59 @@ export const CandidateOfferPortal: React.FC<{ onLogout: () => void }> = ({ onLog
           )}
         </div>
 
-        {/* Right side: Digital Human / Guide */}
+        {/* Right side: Onboarding & Help Guide */}
         <div className="lg:col-span-1 hidden lg:block relative">
-          <div className="sticky top-24 w-[300px] h-[500px]">
-            <DigitalHumanCompanion user={user} activeTab="candidate_offer" context="candidate_offer" />
+          <div className="sticky top-24 bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col gap-5">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
+                <Sparkles className="w-4 h-4" /> Next Steps Guide
+              </div>
+              <h3 className="text-lg font-black text-slate-900">Offer Next Steps</h3>
+              <p className="text-xs text-slate-500 mt-1">Here is what happens during your onboarding journey:</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">1</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">Review Terms & CTC</div>
+                  <div className="text-xs text-slate-500">Carefully examine the compensation structure and joining date.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">2</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">Sign & Accept Offer</div>
+                  <div className="text-xs text-slate-500">Confirm acceptance and upload the signed offer letter copy.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">3</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">Document Verification</div>
+                  <div className="text-xs text-slate-500">Our HR operations team will verify your certificates and credentials.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">4</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">Day 1 Orientation</div>
+                  <div className="text-xs text-slate-500">Receive your workstation, email credentials, and team welcome kit.</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Need Assistance?</h4>
+              <p className="text-xs text-slate-500 mb-3">If you have questions regarding your offer terms, reach out to our Talent team:</p>
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex flex-col gap-1 text-xs">
+                <div className="font-semibold text-slate-800">Talent Acquisition Team</div>
+                <div className="text-indigo-600 font-medium">recruitment@axxel.com</div>
+              </div>
+            </div>
           </div>
         </div>
 

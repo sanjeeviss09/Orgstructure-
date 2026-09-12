@@ -4,7 +4,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
 import { registry, eventBus } from '../integration-layer';
-import airaRoutes from './routes/aira.routes';
 import { ILoggingService } from '../integration-layer/cloud-integration/core/CloudInterfaces';
 
 export async function createEnterpriseServer() {
@@ -25,9 +24,6 @@ export async function createEnterpriseServer() {
     // Initialize the Integration Layer
     console.log(`[Server] Bootstrapping Enterprise Integration Layer...`);
     await registry.initializeAll();
-
-    // Register Routes
-    app.use('/api/v1/aira', airaRoutes);
 
     // Global Error Handler
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

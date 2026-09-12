@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { HRTargets, DeptTarget, DesignationTarget, fetchTargets, saveTargets, fetchEmployees } from '../lib/api';
+import { HRTargets, DeptTarget, DesignationTarget, fetchTargets, saveTargets, fetchEmployees, clearTargetsCache, deleteVacantPositions } from '../lib/api';
 import { Save, Upload, Target, Info, ChevronDown, ChevronRight, Plus, Trash2, Download, RefreshCw } from 'lucide-react';
 import { ConfirmDialog, AlertDialog } from './Dialogs';
 
@@ -23,12 +23,13 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
   const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void, isDestructive?: boolean}>({isOpen: false, title: '', message: '', onConfirm: () => {}});
   const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, title: string, message: string}>({isOpen: false, title: '', message: ''});
 
-  const loadData = useCallback(async (showLoader = false) => {
+  const loadData = useCallback(async (showLoader = false, bypassCache = false) => {
     if (showLoader) setLoading(true);
     else setRefreshing(true);
     try {
+      if (bypassCache) clearTargetsCache();
       const [fetchedTargets, emps] = await Promise.all([
-        fetchTargets(),
+        fetchTargets(bypassCache),
         fetchEmployees()
       ]);
       
@@ -258,7 +259,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
     setConfirmDialog({
       isOpen: true,
       title: 'Delete All Target Data',
-      message: "Are you sure you want to permanently delete all target data? This will remove all departments and their designations from HR targets.",
+      message: "Are you sure you want to permanently delete all target data? This will remove all departments and their designations from HR targets, and clear all unfilled vacant positions.",
       isDestructive: true,
       onConfirm: async () => {
         setConfirmDialog(p => ({ ...p, isOpen: false }));
@@ -273,7 +274,9 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
 
         setSaving(true);
         try {
+          clearTargetsCache();
           await saveTargets(resetTargets);
+          await deleteVacantPositions();
           setTargets(resetTargets);
           onSaved();
         } catch (e) {
@@ -288,91 +291,100 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
   const handleReset = async () => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Sync Targets',
-      message: "Are you sure you want to sync targets with actuals? This will set all budgeted headcounts and allocations to match the actual employee data we have.",
+      title: 'Sync Targets with Actuals',
+      message: "Are you sure you want to sync targets with actuals? This will set all budgeted headcounts and allocations to match the actual employee data we have, and clear any unused vacant positions.",
       onConfirm: async () => {
         setConfirmDialog(p => ({ ...p, isOpen: false }));
         
-        const activeEmps = employees.filter(e => e.employment_status !== 'Inactive');
-        
-        const deptMap = new Map<string, {
-          business_unit: string;
-          department: string;
-          budgeted_hc: number;
-          budget_allocated: number;
-          target_attrition: number;
-          designations: Map<string, {
-            designation: string;
+        setSaving(true);
+        try {
+          const freshEmps = await fetchEmployees();
+          setEmployees(freshEmps);
+          
+          const activeEmps = freshEmps.filter(e => e.employment_status !== 'Inactive');
+          
+          // Clear unused vacant positions from the database
+          await deleteVacantPositions();
+
+          if (activeEmps.length === 0) {
+            const resetTargets: HRTargets = {
+              target_hiring_velocity: 0,
+              target_attrition_rate: 0,
+              global_planned_headcount: undefined,
+              global_open_positions: undefined,
+              departments: []
+            };
+            clearTargetsCache();
+            await saveTargets(resetTargets);
+            setTargets(resetTargets);
+            onSaved();
+            return;
+          }
+
+          const deptMap = new Map<string, {
+            business_unit: string;
+            department: string;
             budgeted_hc: number;
             budget_allocated: number;
-          }>;
-        }>();
-        
-        targets.departments.forEach(d => {
-          const key = `${d.business_unit || ''}:::${d.department}`;
-          deptMap.set(key, {
-            business_unit: d.business_unit || '',
-            department: d.department,
-            budgeted_hc: 0,
-            budget_allocated: 0,
-            target_attrition: d.target_attrition || 8.5,
-            designations: new Map()
-          });
-        });
-        
-        activeEmps.forEach(emp => {
-          const bu = emp.business_unit || '';
-          const dept = emp.department || 'Unassigned';
-          const key = `${bu}:::${dept}`;
-          if (!deptMap.has(key)) {
-            deptMap.set(key, {
-              business_unit: bu,
-              department: dept,
-              budgeted_hc: 0,
-              budget_allocated: 0,
-              target_attrition: 8.5,
-              designations: new Map()
-            });
-          }
+            target_attrition: number;
+            designations: Map<string, {
+              designation: string;
+              budgeted_hc: number;
+              budget_allocated: number;
+            }>;
+          }>();
           
-          const deptData = deptMap.get(key)!;
-          deptData.budgeted_hc += 1;
-          deptData.budget_allocated += (Number(emp.budget_allocated) || Number(emp.ctc_annual) || 0);
-          
-          if (emp.designation) {
+          activeEmps.forEach(emp => {
+            const bu = emp.business_unit || '';
+            const dept = emp.department || 'General';
+            const key = `${bu}:::${dept}`;
+            if (!deptMap.has(key)) {
+              deptMap.set(key, {
+                business_unit: bu,
+                department: dept,
+                budgeted_hc: 0,
+                budget_allocated: 0,
+                target_attrition: 8.5,
+                designations: new Map()
+              });
+            }
+            
+            const deptData = deptMap.get(key)!;
+            deptData.budgeted_hc += 1;
+            deptData.budget_allocated += (Number(emp.budget_allocated) || Number(emp.ctc_annual) || 0);
+            
+            const desig = emp.designation || 'General';
             const desigMap = deptData.designations;
-            if (!desigMap.has(emp.designation)) {
-              desigMap.set(emp.designation, {
-                designation: emp.designation,
+            if (!desigMap.has(desig)) {
+              desigMap.set(desig, {
+                designation: desig,
                 budgeted_hc: 0,
                 budget_allocated: 0
               });
             }
-            const desigData = desigMap.get(emp.designation)!;
+            const desigData = desigMap.get(desig)!;
             desigData.budgeted_hc += 1;
             desigData.budget_allocated += (Number(emp.budget_allocated) || Number(emp.ctc_annual) || 0);
-          }
-        });
-        
-        const departmentsArray: DeptTarget[] = Array.from(deptMap.values()).map(d => ({
-          business_unit: d.business_unit,
-          department: d.department,
-          budgeted_hc: d.budgeted_hc,
-          budget_allocated: d.budget_allocated,
-          target_attrition: d.target_attrition,
-          designations: Array.from(d.designations.values())
-        }));
-        
-        const resetTargets: HRTargets = {
-          target_hiring_velocity: 0,
-          target_attrition_rate: 0,
-          global_planned_headcount: undefined,
-          global_open_positions: undefined,
-          departments: departmentsArray
-        };
-        
-        setSaving(true);
-        try {
+          });
+          
+          const departmentsArray: DeptTarget[] = Array.from(deptMap.values()).map(d => ({
+            business_unit: d.business_unit,
+            department: d.department,
+            budgeted_hc: d.budgeted_hc,
+            budget_allocated: d.budget_allocated,
+            target_attrition: d.target_attrition,
+            designations: Array.from(d.designations.values())
+          }));
+          
+          const resetTargets: HRTargets = {
+            target_hiring_velocity: 0,
+            target_attrition_rate: 0,
+            global_planned_headcount: undefined,
+            global_open_positions: undefined,
+            departments: departmentsArray
+          };
+          
+          clearTargetsCache();
           await saveTargets(resetTargets);
           setTargets(resetTargets);
           onSaved();
@@ -400,7 +412,7 @@ export const TargetSettings: React.FC<TargetSettingsProps> = ({ onSaved }) => {
             <p className="text-sm font-semibold text-slate-500 mt-1">Configure budgets and headcount targets to drive Dashboard Analytics.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={() => loadData(false)} disabled={refreshing} className="btn-secondary flex items-center gap-2 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200" title="Re-fetch targets from server">
+            <button onClick={() => loadData(false, true)} disabled={refreshing} className="btn-secondary flex items-center gap-2 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200" title="Re-fetch targets from server">
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />{refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
             <button onClick={handleReset} className="btn-secondary flex items-center gap-2 bg-white text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200">

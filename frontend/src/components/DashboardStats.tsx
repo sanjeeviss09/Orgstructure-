@@ -7,7 +7,7 @@ import {
   Award, UserCheck, Mail, Briefcase, PieChart, Landmark,
   AlertTriangle, ArrowUpRight, ArrowDownRight,
   Target, ShieldAlert, Settings, Bot, Sparkles, X, Tag,
-  Download, Filter, Bell, Search
+  Download, Filter, Bell, Search, RefreshCw
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -43,6 +43,7 @@ interface DashboardStatsProps {
   activeRole: Role;
   loggedInUser: AuthUser;
   employees: Employee[];
+  positions?: any[];
   onChartClick?: (type: 'hiring' | 'attrition' | 'budget') => void;
   onTargetsClick?: () => void;
   onNavigateToWellness?: () => void;
@@ -139,7 +140,7 @@ const ProfileCard: React.FC<{ employee: Employee; manager?: Employee; peers: Emp
 );
 
 // ── Main Component ────────────────────────────────────────────────────
-export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, onChartClick, onTargetsClick, onNavigateToWellness }) => {
+export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, loggedInUser, employees, positions, onChartClick, onTargetsClick, onNavigateToWellness }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [aiStrategy, setAiStrategy] = useState<string>('');
@@ -201,6 +202,20 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
   }, [filteredWpTable]);
 
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const freshStats = await fetchStats(buFilter, deptFilter);
+      setStats(freshStats);
+    } catch (e) {
+      console.error('Failed to refresh dashboard stats:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleGenerateStrategy = async () => {
     if (!stats) return;
     setLoadingAi(true);
@@ -237,7 +252,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
         .then(data => setAssignments(data))
         .catch(console.error);
     }
-  }, [employees, buFilter, deptFilter, loggedInUser, activeRole]);
+  }, [employees, positions, buFilter, deptFilter, loggedInUser, activeRole]);
 
   if (!stats) {
     return (
@@ -443,6 +458,15 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ activeRole, logg
           </h2>
           {activeRole === 'Admin' && (
             <div className="flex gap-2">
+              <button 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-sm flex items-center gap-1.5 text-xs font-bold" 
+                title="Refresh Dashboard KPIs"
+              >
+                <RefreshCw className={`w-4 h-4 text-indigo-600 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
               <button 
                 onClick={onTargetsClick} 
                 className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-sm" 
