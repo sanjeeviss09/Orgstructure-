@@ -138,7 +138,7 @@
     {
       "id": "u_axx09",
       "username": "AXX09",
-      "password": "password123",
+      "password": "password@123",
       "full_name": "Admin User",
       "role": "Admin",
       "employee_id": null
@@ -146,7 +146,7 @@
     {
       "id": "u_axx08",
       "username": "AXX08",
-      "password": "password123",
+      "password": "password@123",
       "full_name": "Management User",
       "role": "Management",
       "employee_id": null
@@ -154,7 +154,7 @@
     {
       "id": "u_axx07",
       "username": "AXX07",
-      "password": "password123",
+      "password": "password@123",
       "full_name": "HOD User",
       "role": "HOD",
       "employee_id": null
@@ -162,7 +162,7 @@
     {
       "id": "u_axx06",
       "username": "AXX06",
-      "password": "password123",
+      "password": "password@123",
       "full_name": "Manager User",
       "role": "Manager",
       "employee_id": null
@@ -170,7 +170,7 @@
     {
       "id": "u_axx05",
       "username": "AXX05",
-      "password": "password123",
+      "password": "password@123",
       "full_name": "Employee User",
       "role": "Employee",
       "employee_id": null
